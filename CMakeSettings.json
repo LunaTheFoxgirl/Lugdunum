@@ -8,7 +8,7 @@
           "buildCommandArgs": "-m -v:minimal",
           "variables": [
             {
-              "name": "CMAKE_INSTALL_PREFIX",
+              "name": "CMAKE_INSTALL_PREFIX:PATH",
               "value": "C:\\Lugdunum"
             }
           ]
