@@ -105,3 +105,37 @@ inline Matrix<4, 4, T> perspective(T fovy, T aspect, T zNear, T zFar) {
 
     return matrix;
 }
+
+
+template <typename T>
+Vector<3, T> unProject(const Vector<3, T> & win, const Mat4x4<T> &model, const Mat4x4<T> &proj, const Vec4<T> &viewport) {
+    const   Matrix<4, 4, T> projCrossModel = proj * model;
+    const   Matrix<4, 4, T> inverse = projCrossModel.inverse();
+    
+    Vec4<T> tmp = Vec4<T>(win[0],win[1], win[2], T(1));
+    tmp[0] = (tmp[0] - T(viewport[0])) / T(viewport[2]);
+    tmp[1] = (tmp[1] - T(viewport[1])) / T(viewport[3]);
+    tmp = tmp * T(2) - T(1);
+
+    Vec4<T> obj = inverse * tmp;
+    obj = obj / obj[3];
+    
+    return Vec3<T>(obj[0], obj[1], obj[2]);
+}
+
+template <typename T>
+Vector<3, T> project(const Vector<3, T> &obj, const Mat4x4<T> &model, const Mat4x4<T> &proj, const Vec4<T> &viewport) {
+
+    Vec4<T> tmp = Vec4<T>(obj[0], obj[1], obj[2], T(1));
+    tmp = model * tmp;
+    tmp = proj * tmp;
+
+    tmp = tmp / tmp[3];
+
+    tmp = tmp * T(0.5) + T(0.5);
+ 
+    tmp[0] = tmp[0] * T(viewport[2]) + T(viewport[0]);
+    tmp[1] = tmp[1] * T(viewport[3]) + T(viewport[1]);
+    
+    return Vec3<T>(tmp[0], tmp[1], tmp[2]);
+}

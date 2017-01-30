@@ -11,6 +11,12 @@ namespace Geometry {
 // TODO: project, unproject, maybe some others projection matrices
 
 template <typename T>
+Vector<3, T> project(const Vector<3, T>& obj,const Mat4x4<T> &model,const Mat4x4<T> &proj, const Vec4<T> &viewport);
+
+template <typename T>
+Vector<3, T> unProject(const Vector<3, T> & win, const Mat4x4<T> &model, const Mat4x4<T> &proj, const Vec4<T> &viewport);
+
+template <typename T>
 Matrix<4, 4, T> translate(const Vector<3, T>& direction);
 
 template <typename T>
