@@ -3,6 +3,7 @@
 #include <lug/Math/Geometry/Trigonometry.hpp>
 #include <lug/Math/Matrix.hpp>
 #include <lug/Math/Vector.hpp>
+#include <lug/Math/Quaternion.hpp>
 
 namespace lug {
 namespace Math {
@@ -33,6 +34,9 @@ Matrix<4, 4, T> ortho(T left, T right, T bottom, T top, T zNear, T zFar);
 
 template <typename T>
 Matrix<4, 4, T> perspective(T fovy, T aspect, T zNear, T zFar);
+
+template <typename T>
+bool decompose(Mat4x4<T> const & modelMatric, Vec3<T> &scale, Quaternion<T> &orientation, Vec3<T> &orientation, Vec3<T> &translation, Vec3<T>skew,Vec4<T> perspective)
 
 #include <lug/Math/Geometry/Transform.inl>
 
