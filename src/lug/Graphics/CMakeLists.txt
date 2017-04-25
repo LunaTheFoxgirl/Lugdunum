@@ -18,6 +18,11 @@ set(SRC
     ${SRCROOT}/Render/Model.cpp
     ${SRCROOT}/Render/Queue.cpp
     ${SRCROOT}/Render/View.cpp
+    ${SRCROOT}/Render/Gui.cpp
+    
+    ${SRCROOT}/Render/dear_imgui/imgui.cpp
+    ${SRCROOT}/Render/dear_imgui/imgui_demo.cpp
+    ${SRCROOT}/Render/dear_imgui/imgui_draw.cpp
 
     ${SRCROOT}/Renderer.cpp
 
@@ -84,7 +89,7 @@ set(INC
 
     ${INCROOT}/Module.hpp
     ${INCROOT}/Module.inl
-    ${INCROOT}/Node.hpp
+    ${INCROOT}/Node.hpp 
     ${INCROOT}/Node.inl
 
     ${INCROOT}/Render/Camera.hpp
@@ -100,6 +105,14 @@ set(INC
     ${INCROOT}/Render/View.hpp
     ${INCROOT}/Render/View.inl
     ${INCROOT}/Render/Window.hpp
+    ${INCROOT}/Render/Gui.hpp
+
+    ${INCROOT}/Render/dear_imgui/imgui.h
+    ${INCROOT}/Render/dear_imgui/imconfig.h
+    ${INCROOT}/Render/dear_imgui/imgui_internal.h
+    ${INCROOT}/Render/dear_imgui/stb_rect_pack.h
+    ${INCROOT}/Render/dear_imgui/stb_textedit.h
+    ${INCROOT}/Render/dear_imgui/stb_truetype.h
 
     ${INCROOT}/Renderer.hpp
     ${INCROOT}/Renderer.inl

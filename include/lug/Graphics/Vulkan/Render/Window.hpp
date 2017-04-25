@@ -3,6 +3,7 @@
 #include <memory>
 #include <lug/Graphics/Export.hpp>
 #include <lug/Graphics/Render/Window.hpp>
+#include <lug/Graphics/Render/Gui.hpp>
 #include <lug/Graphics/Vulkan/API/DescriptorPool.hpp>
 #include <lug/Graphics/Vulkan/API/Fence.hpp>
 #include <lug/Graphics/Vulkan/API/Semaphore.hpp>
@@ -87,6 +88,8 @@ private:
     std::vector<FrameData> _framesData;
 
     std::vector<AcquireImageData> _acquireImageDatas;
+
+    Gui   _imGuiInstance;
 };
 
 #include <lug/Graphics/Vulkan/Render/Window.inl>

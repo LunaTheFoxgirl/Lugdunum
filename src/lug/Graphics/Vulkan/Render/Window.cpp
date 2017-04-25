@@ -99,6 +99,8 @@ bool Window::beginFrame() {
                     }
         );
 
+    _imGuiInstance.beginFrame();
+
     return _presentQueue->submit(
         cmdBuffer,
         imageReadyVkSemaphores,
@@ -130,6 +132,8 @@ bool Window::endFrame() {
     }
     std::vector<VkPipelineStageFlags> waitDstStageMasks(waitSemaphores.size(), VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT);
 
+    _imGuiInstance.endFrame();
+
     return _presentQueue->submit(
         cmdBuffer,
         {static_cast<VkSemaphore>(frameData.allDrawsFinishedSemaphore)},
@@ -158,6 +162,8 @@ bool Window::render() {
             return false;
         }
     }
+
+    _imGuiInstance.render();
 
     return true;
 }
