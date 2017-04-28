@@ -27,6 +27,7 @@ private:
 
     struct FrameData {
         API::Semaphore allDrawsFinishedSemaphore{};
+        // API::Semaphore guiFinishedSemaphore{};
         std::vector<API::Semaphore> imageReadySemaphores{};
         std::vector<API::CommandBuffer> cmdBuffers;
     };
