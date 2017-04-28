@@ -14,13 +14,12 @@
 // #include <lug/System/Clock.hpp>
 // #include <lug/Math/Vector.hpp>
 
-// #include <lug/Graphics/Render/dear_imgui/imgui.h>
 #include <lug/Graphics/Vulkan/Renderer.hpp>
+
 
 namespace lug {
 namespace Graphics {
 namespace Vulkan {
-namespace Render {
 
 class LUG_GRAPHICS_API Gui {
 // private:
@@ -35,7 +34,7 @@ public:
     Gui(Renderer& renderer);
 
     Gui(const Gui&) = delete;
-    Gui(Window&&) = delete;
+//    Gui(lug::Graphics::Render::Window&&) = delete;
 
     Gui& operator=(const Gui&) = delete;
     Gui& operator=(Gui&&) = delete;
@@ -47,9 +46,7 @@ public:
     // bool endFrame();
     // void destroy();
 
-    // void init(float width, float height);
-    // bool initRessources(VkRenderPass renderPass, VkQueue copyQueue);
-
+    void init(float width, float height);
 
 private:
 
@@ -69,7 +66,6 @@ private:
     // VkImageView fontView = VK_NULL_HANDLE;
 };
 
-} // Render
 } // Vulkan
 } // Graphics
 } // lug

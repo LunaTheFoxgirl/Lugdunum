@@ -18,7 +18,6 @@ set(SRC
     ${SRCROOT}/Render/Model.cpp
     ${SRCROOT}/Render/Queue.cpp
     ${SRCROOT}/Render/View.cpp
-    ${SRCROOT}/Render/Gui.cpp
     
     ${SRCROOT}/Render/dear_imgui/imgui.cpp
     ${SRCROOT}/Render/dear_imgui/imgui_demo.cpp
@@ -67,11 +66,12 @@ set(SRC
     ${SRCROOT}/Vulkan/Render/Window.cpp
 
     ${SRCROOT}/Vulkan/Renderer.cpp
+    ${SRCROOT}/Vulkan/Gui.cpp
+    ${SRCROOT}/Vulkan/Vulkan.cpp
 
     ${SRCROOT}/Vulkan/Requirements/Core.hpp
     ${SRCROOT}/Vulkan/Requirements/Requirements.hpp
 
-    ${SRCROOT}/Vulkan/Vulkan.cpp
 )
 source_group("src" FILES ${SRC})
 
@@ -105,7 +105,6 @@ set(INC
     ${INCROOT}/Render/View.hpp
     ${INCROOT}/Render/View.inl
     ${INCROOT}/Render/Window.hpp
-    ${INCROOT}/Render/Gui.hpp
 
     ${INCROOT}/Render/dear_imgui/imgui.h
     ${INCROOT}/Render/dear_imgui/imconfig.h
@@ -171,6 +170,7 @@ set(INC
     ${INCROOT}/Vulkan/Render/Window.hpp
     ${INCROOT}/Vulkan/Render/Window.inl
 
+    ${INCROOT}/Vulkan/Gui.hpp
     ${INCROOT}/Vulkan/Renderer.hpp
     ${INCROOT}/Vulkan/Renderer.inl
     ${INCROOT}/Vulkan/Vulkan.hpp

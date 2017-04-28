@@ -5,6 +5,7 @@
 #include <lug/Graphics/Vulkan/API/RTTI/Enum.hpp>
 #include <lug/System/Debug.hpp>
 #include <lug/System/Logger/Logger.hpp>
+#include <lug/Graphics/Vulkan/Gui.hpp>
 
 #if defined(LUG_SYSTEM_WINDOWS)
     #include <lug/Window/Win32/WindowImplWin32.hpp>
@@ -19,7 +20,10 @@ namespace Graphics {
 namespace Vulkan {
 namespace Render {
 
-Window::Window(Renderer& renderer) : _renderer(renderer) {}
+Window::Window(Renderer& renderer) : _renderer(renderer) {
+    _imGuiInstance = std::make_unique<Gui>(_renderer);
+    _imGuiInstance->init(getWidth(), getHeight());
+}
 
 Window::~Window() {
     destroyRender();
@@ -99,7 +103,7 @@ bool Window::beginFrame() {
                     }
         );
 
-    _imGuiInstance.beginFrame();
+//    _imGuiInstance.beginFrame();
 
     return _presentQueue->submit(
         cmdBuffer,
@@ -164,7 +168,7 @@ bool Window::render() {
         }
     }
 
-    _imGuiInstance.render();
+//    _imGuiInstance.render();
     // texture to framedata
     // queue transfert 
     // tu transfert la data dans la texture 
@@ -552,12 +556,12 @@ bool Window::initFramesData() {
             _framesData[i].allDrawsFinishedSemaphore = API::Semaphore(semaphore, &_renderer.getDevice());
 
             // guiSemaphore
-            VkResult result = vkCreateSemaphore(static_cast<VkDevice>(_renderer.getDevice()), &createInfo, nullptr, &semaphore);
-            if (result != VK_SUCCESS) {
-                LUG_LOG.error("RendererVulkan: Can't create swapchain semaphore: {}", result);
-                return false;
-            }            
-            _framesData[i].guiFinishedSemaphore = API::Semaphore(semaphore, &_renderer.getDevice());
+//            result = vkCreateSemaphore(static_cast<VkDevice>(_renderer.getDevice()), &createInfo, nullptr, &semaphore);
+//            if (result != VK_SUCCESS) {
+//                LUG_LOG.error("RendererVulkan: Can't create swapchain semaphore: {}", result);
+//                return false;
+//            }            
+//            _framesData[i].guiFinishedSemaphore = API::Semaphore(semaphore, &_renderer.getDevice());
 
         }
 

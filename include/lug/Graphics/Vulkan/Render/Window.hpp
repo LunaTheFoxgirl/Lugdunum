@@ -3,7 +3,6 @@
 #include <memory>
 #include <lug/Graphics/Export.hpp>
 #include <lug/Graphics/Render/Window.hpp>
-#include <lug/Graphics/Render/Gui.hpp>
 #include <lug/Graphics/Vulkan/API/DescriptorPool.hpp>
 #include <lug/Graphics/Vulkan/API/Fence.hpp>
 #include <lug/Graphics/Vulkan/API/Semaphore.hpp>
@@ -15,6 +14,7 @@ namespace Graphics {
 namespace Vulkan {
 
 class Renderer;
+class Gui;
 
 namespace Render {
 
@@ -90,7 +90,7 @@ private:
 
     std::vector<AcquireImageData> _acquireImageDatas;
 
-    Gui   _imGuiInstance;
+    std::unique_ptr<Gui>   _imGuiInstance;
 };
 
 #include <lug/Graphics/Vulkan/Render/Window.inl>
