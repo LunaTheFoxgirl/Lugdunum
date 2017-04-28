@@ -121,6 +121,7 @@ bool Window::endFrame() {
 
         // Render views with no camera don't signal the semaphore as they don't draw
         if (renderView_->getCamera()) {
+            // wait aur la nouvelle semaphore GUI
             waitSemaphores[i++] = static_cast<VkSemaphore>(renderView_->getDrawCompleteSemaphore(_currentImageIndex));
         }
     }
@@ -132,7 +133,7 @@ bool Window::endFrame() {
     }
     std::vector<VkPipelineStageFlags> waitDstStageMasks(waitSemaphores.size(), VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT);
 
-    _imGuiInstance.endFrame();
+    // _imGuiInstance.endFrame();
 
     return _presentQueue->submit(
         cmdBuffer,
@@ -164,7 +165,13 @@ bool Window::render() {
     }
 
     _imGuiInstance.render();
-
+    // texture to framedata
+    // queue transfert 
+    // tu transfert la data dans la texture 
+    // semaphore pour notifier le transfert // pas besoin avec buffer.movedata
+    // command buffer to dray la texture sur l'image final qui wait sur la semaphore --> peut etre stocker dans framedata vu que ca change pas 
+    // notifie un semaphore pour autoriser le draw 
+    // tu render sur l'image de la swapchain 
     return true;
 }
 
@@ -543,6 +550,15 @@ bool Window::initFramesData() {
             }
 
             _framesData[i].allDrawsFinishedSemaphore = API::Semaphore(semaphore, &_renderer.getDevice());
+
+            // guiSemaphore
+            VkResult result = vkCreateSemaphore(static_cast<VkDevice>(_renderer.getDevice()), &createInfo, nullptr, &semaphore);
+            if (result != VK_SUCCESS) {
+                LUG_LOG.error("RendererVulkan: Can't create swapchain semaphore: {}", result);
+                return false;
+            }            
+            _framesData[i].guiFinishedSemaphore = API::Semaphore(semaphore, &_renderer.getDevice());
+
         }
 
         // Image ready semaphores
