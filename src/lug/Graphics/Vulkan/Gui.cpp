@@ -50,16 +50,14 @@ Gui::~Gui() {
 // void Gui::destroy() {
 // }
 
-void Gui::init(float width, float height) {
+void Gui::createFontsTexture() {
     ImGuiIO& io = ImGui::GetIO();
-
-    io.DisplaySize = ImVec2(width, height); // screen size
 
     // Create font texture
     unsigned char* fontData;
     int texWidth, texHeight;
     io.Fonts->GetTexDataAsRGBA32(&fontData, &texWidth, &texHeight);
-    uint32_t uploadSize = texWidth*texHeight * sizeof(int);
+    size_t uploadSize = texWidth * texHeight * 4 * sizeof(char);
 
     auto device = &_renderer.getDevice();
 
@@ -69,20 +67,24 @@ void Gui::init(float width, float height) {
                                                        VK_IMAGE_TILING_OPTIMAL,
                                                        VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT);
 
-      VkExtent3D extent {
-            extent.width = texWidth,
-            extent.height = texHeight,
-            extent.depth = 1
-        };
+    VkExtent3D extent {
+        extent.width = texWidth,
+        extent.height = texHeight,
+        extent.depth = 1
+    };
 
     std::unique_ptr<API::Image> image = nullptr;
     std::unique_ptr<API::ImageView> imageView = nullptr;
-    std::unique_ptr<API::DeviceMemory> depthBufferMemory = nullptr;
+    std::unique_ptr<API::DeviceMemory> fontsTextureHostMemory = nullptr;
 
-    // Create depth buffer image
+    // Create FontsTexture image
     {
         // Create Vulkan Image
-        image = API::Image::create(device, imagesFormat, extent, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT);
+
+        // TODO chopper queue de graphics && transfert pour le rendre available sur les deux. Si les deux queue sont les meme alors renvoei qu'un seul int.
+        // si deux queue : mode de partage partager , si une seule, en exclusive 
+
+        image = API::Image::create(device, imagesFormat, extent, VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT);
         if (!image) {
             LUG_LOG.error("Forward: Can't create depth buffer image");
             return ;
@@ -91,46 +93,78 @@ void Gui::init(float width, float height) {
         auto& imageRequirements = image->getRequirements();
 
         uint32_t memoryTypeIndex = API::DeviceMemory::findMemoryType(device, imageRequirements, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-        // Allocate image requirements size for all images
-        depthBufferMemory = API::DeviceMemory::allocate(device, imageRequirements.size, memoryTypeIndex);
-        if (!depthBufferMemory) {
+   
+        // Allocate image requirements size for image
+        fontsTextureHostMemory = API::DeviceMemory::allocate(device, imageRequirements.size, memoryTypeIndex);
+        if (!fontsTextureHostMemory) {
             LUG_LOG.error("Forward: Can't allocate device memory for depth buffer images");
             return ;
         }
 
         // Bind memory to image
-        image->bindMemory(depthBufferMemory.get(), imageRequirements.size);
+        image->bindMemory(fontsTextureHostMemory.get(), imageRequirements.size);
     }
 
-    // Create depth buffer image view
+    // Create FontsTexture image view
     {
         // Create Vulkan Image View
-        imageView = API::ImageView::create(device, image.get(), imagesFormat, VK_IMAGE_ASPECT_DEPTH_BIT);
+        imageView = API::ImageView::create(device, image.get(), imagesFormat, VK_IMAGE_ASPECT_COLOR_BIT);
         if (!imageView) {
             LUG_LOG.error("GUI: Can't create image view");
             return;
         }
     }
 
-    // Create Vulkan Buffer
-    // TODO demander a quentin comment choisir la queue VK_QUEUE_TRANSFER_BIT plutot que celle de VK_QUEUE_GRAPHICS_BIT
-    std::vector<uint32_t> queueFamilyIndices = { (uint32_t)_renderer.getQueue(VK_QUEUE_TRANSFER_BIT, false)->getFamilyIdx()};
+    // Create staging buffers for font data upload
+    {
+        std::vector<uint32_t> queueFamilyIndices = { (uint32_t)_renderer.getQueue(VK_QUEUE_TRANSFER_BIT, false)->getFamilyIdx()};
 
-    auto stagingBuffer = API::Buffer::create(device, (uint32_t)queueFamilyIndices.size(), queueFamilyIndices.data(), uploadSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT);
-    if (!stagingBuffer) {
-        LUG_LOG.error("GUI: Can't create buffer");
-        return ;
+
+        // TODO chopper queue de graphics && transfert pour le rendre available sur les deux. Si les deux queue sont les meme alors renvoei qu'un seul int.
+        // si deux queue : mode de partage partager , si une seule, en exclusive 
+        auto stagingBuffer = API::Buffer::create(device, (uint32_t)queueFamilyIndices.size(), queueFamilyIndices.data(), uploadSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, 0, VK_SHARING_MODE_EXCLUSIVE);
+        if (!stagingBuffer) {
+            LUG_LOG.error("GUI: Can't create buffer");
+            return ;
+        }
+
+        auto& requirements = stagingBuffer->getRequirements();
+        uint32_t memoryTypeIndex = API::DeviceMemory::findMemoryType(device, requirements, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
+        auto fontsTextureDeviceMemory = API::DeviceMemory::allocate(device, requirements.size, memoryTypeIndex);
+        if (!fontsTextureDeviceMemory) {
+            return ;
+        }
+
+        stagingBuffer->bindMemory(fontsTextureDeviceMemory.get());
+        stagingBuffer->updateData(fontData, uploadSize);
     }
 
-    auto& requirements = stagingBuffer->getRequirements();
-    uint32_t memoryTypeIndex = API::DeviceMemory::findMemoryType(device, requirements, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
-    auto fontDeviceMemory = API::DeviceMemory::allocate(device, requirements.size, memoryTypeIndex);
-    if (!fontDeviceMemory) {
-        return ;
-    }
+    // Copy buffer data to font image
+    {
+        // Create Command Buffer
+        // uen fois que j'ai la queue, je recuper la command pool (getCommandpool) et je creer  un command buffer. Queue de transfert
 
-    stagingBuffer->bindMemory(fontDeviceMemory.get());
-    stagingBuffer->updateData(fontData, uploadSize);
+        // Fence
+        {
+            VkFence fence;
+            VkFenceCreateInfo createInfo{
+                createInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
+                createInfo.pNext = nullptr,
+                createInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT
+            };
+            VkResult result = vkCreateFence(static_cast<VkDevice>(*_device), &createInfo, nullptr, &fence);
+            if (result != VK_SUCCESS) {
+                LUG_LOG.error("RendererVulkan: Can't create swapchain fence: {}", result);
+                return false;
+        }
+
+        // submit en notifiant la fence
+
+        // wait sur la fence
+ 
+        // je delete tout les truc cpu side inutile  : fence + command buffer + staging buffer
+
+    }
 
     //TODO : pourquoi mapMemory n'a pas de valuer "WHOLE_MEMORY"
     // move form  char * to Vulkan Buffer

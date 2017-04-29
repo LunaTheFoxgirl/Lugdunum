@@ -46,7 +46,7 @@ public:
     // bool endFrame();
     // void destroy();
 
-    void init(float width, float height);
+    void createFontsTexture();
 
 private:
 
