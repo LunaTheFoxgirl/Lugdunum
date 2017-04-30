@@ -22,7 +22,7 @@ namespace Render {
 
 Window::Window(Renderer& renderer) : _renderer(renderer) {
     _imGuiInstance = std::make_unique<Gui>(_renderer);
-    _imGuiInstance->init(getWidth(), getHeight());
+    _imGuiInstance->createFontsTexture();
 }
 
 Window::~Window() {

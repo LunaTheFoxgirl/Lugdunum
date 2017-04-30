@@ -19,6 +19,7 @@
 // #include <lug/Math/Geometry/Transform.hpp>
 // #include <lug/System/Logger/Logger.hpp>
 
+#include <lug/Graphics/Vulkan/API/Fence.hpp>
 #include <lug/Graphics/Render/dear_imgui/imgui.h>
 
 #include <lug/Graphics/Vulkan/Gui.hpp>
@@ -73,8 +74,8 @@ void Gui::createFontsTexture() {
         extent.depth = 1
     };
 
-    std::unique_ptr<API::Queue*> graphicsQueue = _renderer.getQueue(VK_QUEUE_GRAPHICS_BIT, false);
-    std::unique_ptr<API::Queue*> transfertQueue = _renderer.getQueue(VK_QUEUE_TRANSFERT_BIT, false);
+//    API::Queue* graphicsQueue = _renderer.getQueue(VK_QUEUE_GRAPHICS_BIT, false);
+    API::Queue* transfertQueue = _renderer.getQueue(VK_QUEUE_TRANSFER_BIT, false);
 
     // Create FontsTexture image
     {
@@ -107,7 +108,7 @@ void Gui::createFontsTexture() {
     // Create FontsTexture image view
     {
         // Create Vulkan Image View
-        _imageView = API::ImageView::create(device, image.get(), imagesFormat, VK_IMAGE_ASPECT_COLOR_BIT);
+        _imageView = API::ImageView::create(device, _image.get(), imagesFormat, VK_IMAGE_ASPECT_COLOR_BIT);
         if (!_imageView) {
             LUG_LOG.error("GUI: Can't create image view");
             return;
@@ -135,12 +136,12 @@ void Gui::createFontsTexture() {
         }
 
         stagingBuffer->bindMemory(fontsTextureDeviceMemory.get());
-        stagingBuffer->updateData(fontData, uploadSize);
+        stagingBuffer->updateData(fontData, (uint32_t)uploadSize);
     }
 
     // Copy buffer data to font image
     {
-        auto commandBuffer = transfertQueue->getCommandpool()->createCommandBuffers();
+        auto commandBuffer = transfertQueue->getCommandPool().createCommandBuffers();
 
         // Fence
         {
@@ -150,17 +151,17 @@ void Gui::createFontsTexture() {
                 createInfo.pNext = nullptr,
                 createInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT
             };
-            VkResult result = vkCreateFence(static_cast<VkDevice>(*_device), &createInfo, nullptr, &fence);
+            VkResult result = vkCreateFence(static_cast<VkDevice>(_renderer.getDevice()), &createInfo, nullptr, &fence);
             if (result != VK_SUCCESS) {
                 LUG_LOG.error("RendererVulkan: Can't create swapchain fence: {}", result);
-                return false;
+                return ;
             }
-            _fence = Vulkan::API::Fence(fence, _renderer.getDevice());
-        }
+            _fence = Vulkan::API::Fence(fence, &_renderer.getDevice());
 
-        if (transfertQueue->submit(commandBuffer, {}, {}, {}, fence) == false) {
-            LUG_LOG.error("Gui: Can't submit commandBuffer");
-            return;            
+            if (transfertQueue->submit(commandBuffer[0], {}, {}, {}, fence) == false) {
+                LUG_LOG.error("Gui: Can't submit commandBuffer");
+                return;
+            }
         }
 
         // TODO : set a define for the fence timeout 
@@ -170,8 +171,8 @@ void Gui::createFontsTexture() {
         }
  
         _fence.destroy();
-        commandBuffer.destroy();
-        stagingBuffer.destroy();
+//        commandBuffer.destroy();
+//        stagingBuffer.destroy();
     }
 }
     //TODO : pourquoi mapMemory n'a pas de valuer "WHOLE_MEMORY"
@@ -191,8 +192,6 @@ void Gui::createFontsTexture() {
     // Create Pipeline to render
 
     // reussir a compiler <3
-
-}
 
 // bool Gui::initDepthBuffers(const std::vector<std::unique_ptr<API::ImageView>>& /*imageViews*/) {
 //     return true;
