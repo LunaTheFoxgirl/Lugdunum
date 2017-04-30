@@ -73,9 +73,8 @@ void Gui::createFontsTexture() {
         extent.depth = 1
     };
 
-    std::unique_ptr<API::Image> image = nullptr;
-    std::unique_ptr<API::ImageView> imageView = nullptr;
-    std::unique_ptr<API::DeviceMemory> fontsTextureHostMemory = nullptr;
+    std::unique_ptr<API::Queue*> graphicsQueue = _renderer.getQueue(VK_QUEUE_GRAPHICS_BIT, false);
+    std::unique_ptr<API::Queue*> transfertQueue = _renderer.getQueue(VK_QUEUE_TRANSFERT_BIT, false);
 
     // Create FontsTexture image
     {
@@ -84,32 +83,32 @@ void Gui::createFontsTexture() {
         // TODO chopper queue de graphics && transfert pour le rendre available sur les deux. Si les deux queue sont les meme alors renvoei qu'un seul int.
         // si deux queue : mode de partage partager , si une seule, en exclusive 
 
-        image = API::Image::create(device, imagesFormat, extent, VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT);
-        if (!image) {
+        _image = API::Image::create(device, imagesFormat, extent, VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT);
+        if (!_image) {
             LUG_LOG.error("Forward: Can't create depth buffer image");
             return ;
         }
 
-        auto& imageRequirements = image->getRequirements();
+        auto& imageRequirements = _image->getRequirements();
 
         uint32_t memoryTypeIndex = API::DeviceMemory::findMemoryType(device, imageRequirements, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
    
         // Allocate image requirements size for image
-        fontsTextureHostMemory = API::DeviceMemory::allocate(device, imageRequirements.size, memoryTypeIndex);
-        if (!fontsTextureHostMemory) {
+        _fontsTextureHostMemory = API::DeviceMemory::allocate(device, imageRequirements.size, memoryTypeIndex);
+        if (!_fontsTextureHostMemory) {
             LUG_LOG.error("Forward: Can't allocate device memory for depth buffer images");
             return ;
         }
 
         // Bind memory to image
-        image->bindMemory(fontsTextureHostMemory.get(), imageRequirements.size);
+        _image->bindMemory(_fontsTextureHostMemory.get(), imageRequirements.size);
     }
 
     // Create FontsTexture image view
     {
         // Create Vulkan Image View
-        imageView = API::ImageView::create(device, image.get(), imagesFormat, VK_IMAGE_ASPECT_COLOR_BIT);
-        if (!imageView) {
+        _imageView = API::ImageView::create(device, image.get(), imagesFormat, VK_IMAGE_ASPECT_COLOR_BIT);
+        if (!_imageView) {
             LUG_LOG.error("GUI: Can't create image view");
             return;
         }
@@ -141,8 +140,7 @@ void Gui::createFontsTexture() {
 
     // Copy buffer data to font image
     {
-        // Create Command Buffer
-        // uen fois que j'ai la queue, je recuper la command pool (getCommandpool) et je creer  un command buffer. Queue de transfert
+        auto commandBuffer = transfertQueue->getCommandpool()->createCommandBuffers();
 
         // Fence
         {
@@ -156,16 +154,26 @@ void Gui::createFontsTexture() {
             if (result != VK_SUCCESS) {
                 LUG_LOG.error("RendererVulkan: Can't create swapchain fence: {}", result);
                 return false;
+            }
+            _fence = Vulkan::API::Fence(fence, _renderer.getDevice());
         }
 
-        // submit en notifiant la fence
+        if (transfertQueue->submit(commandBuffer, {}, {}, {}, fence) == false) {
+            LUG_LOG.error("Gui: Can't submit commandBuffer");
+            return;            
+        }
 
-        // wait sur la fence
+        // TODO : set a define for the fence timeout 
+        if (_fence.wait() == false) {
+            LUG_LOG.error("Gui: Can't vkWaitForFences");
+            return;
+        }
  
-        // je delete tout les truc cpu side inutile  : fence + command buffer + staging buffer
-
+        _fence.destroy();
+        commandBuffer.destroy();
+        stagingBuffer.destroy();
     }
-
+}
     //TODO : pourquoi mapMemory n'a pas de valuer "WHOLE_MEMORY"
     // move form  char * to Vulkan Buffer
 //    stagingBuffer.updateData(fontData, uploadSize, 0); // pas besoin d'une semaphore c'est synchrone cote CPU 

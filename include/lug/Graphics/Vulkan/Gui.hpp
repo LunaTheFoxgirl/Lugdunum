@@ -51,7 +51,14 @@ public:
 private:
 
     Renderer& _renderer;
+    Vulkan::API::Fence _fence;
+    std::unique_ptr<API::Image> _image = nullptr;
+    std::unique_ptr<API::ImageView> _imageView = nullptr;
+    std::unique_ptr<API::DeviceMemory> _fontsTextureHostMemory = nullptr;
 
+
+    // API::Queue* _graphicsQueue{nullptr};
+    // API::Queue* _Queue{nullptr};
 
     // std::unique_ptr<API::Image> image;
     // std::unique_ptr<API::ImageView> imageView;
