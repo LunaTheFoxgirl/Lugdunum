@@ -55,6 +55,10 @@ private:
     std::unique_ptr<API::Image> _image = nullptr;
     std::unique_ptr<API::ImageView> _imageView = nullptr;
     std::unique_ptr<API::DeviceMemory> _fontsTextureHostMemory = nullptr;
+    std::unique_ptr<Vulkan::API::DescriptorSetLayout> _descriptorSetLayout;
+    VkSampler _sampler;
+    Vulkan::API::DescriptorPool _descriptorPool;
+    DescriptorSet _descriptorSet;
 
 
     // API::Queue* _graphicsQueue{nullptr};

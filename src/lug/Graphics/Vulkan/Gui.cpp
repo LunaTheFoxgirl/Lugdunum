@@ -177,7 +177,6 @@ void Gui::createFontsTexture() {
 
     // Font texture Sampler
     {
-        VkSampler sampler;
         VkSamplerCreateInfo samplerInfo = {};
         samplerInfo.magFilter = VK_FILTER_LINEAR;
         samplerInfo.minFilter = VK_FILTER_LINEAR;
@@ -186,41 +185,74 @@ void Gui::createFontsTexture() {
         samplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
         samplerInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
         samplerInfo.borderColor = VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE;
-        vkCreateSampler(static_cast<VkDevice>(_renderer.getDevice()), &samplerInfo, nullptr, &sampler);
 
-        VkImageView vkImageView = _imageView;
-
-        VkDescriptorImageInfo descriptorImageInfo = {};
-        descriptorImageInfo.sampler = sampler;
-        descriptorImageInfo.imageView = vkImageView;
-        descriptorImageInfo.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
+        vkCreateSampler(static_cast<VkDevice>(_renderer.getDevice()), &samplerInfo, nullptr, &_sampler);
     }
+
+    {
+        // creating descriptor pool
+        VkDescriptorPoolSize descriptorPoolSize;
+        descriptorPoolSize.VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+        descriptorPoolSize.descriptorCount = 1;
+
+        VkDescriptorPoolCreateInfo descriptorPoolCreateInfo;
+        descriptorPoolCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+        descriptorPoolCreateInfo.pNext = nullptr;
+        descriptorPoolCreateInfo.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
+        descriptorPoolCreateInfo.maxSets = 1;
+        descriptorPoolCreateInfo.pPoolSizes = 1;
+        descriptorPoolCreateInfo.pPoolSizes = &descriptorPoolSize;
+    
+        VkDescriptorPool descPool = vkCreateDescriptorPool(_renderer.getDevice(), &descriptorPoolCreateInfo, nullptr);
+
+        _descriptorPool = Vulkan::API::DescriptorPool(descPool, _renderer.getDevice());
+
+
+        // descriptorSetLayout
+        VkDescriptorSetLayoutBinding descriptorLayoutBinding;
+        descriptorLayoutBinding.binding = 0;   // maybe modify that when shader is coded
+        descriptorLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+        descriptorLayoutBinding.descriptorCount = 1;
+        descriptorLayoutBinding.VK_SHADER_STAGE_FRAGMENT_BIT;
+        descriptorLayoutBinding.pImmutableSamplers = nullptr;
+
+        _descriptorSetLayout = Vulkan::API::DescriptorSetLayout::create(_renderer.getDevice(), &descriptorLayoutBinding, 1);
+
+
+        // create descriptor set
+        _descriptorSet = _descriptorPool.createDescriptorSets({static_cast<VkDescriptorSetLayout>(*_descriptorSetLayout)})[0];
+
+        // write descriptor set
+        VkDescriptorImageInfo descriptorImageInfo;
+        descriptorImageInfo.sampler = _sampler;
+        descriptorImageInfo.imageView = static_cast<VkImageLayout>(*_imageView);
+        descriptorImageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+
+        VkWriteDescriptorSet write{
+            write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+            write.pNext = nullptr,
+            write.dstSet = _descriptorSet,
+            write.dstBinding = 0, // maybe modify that when shader is coded
+            write.dstArrayElement = 0,
+            write.descriptorCount = 1,
+            write.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+            write.pImageInfo = &descriptorImageInfo,
+            write.pBufferInfo = nullptr,
+            write.pTexelBufferView = nullptr
+        };
+
+
+        // update descriptor set
+        vkUpdateDescriptorSets(s_renderer.getDevice(), 1, &write, 0, nullptr);
+    }
+
+    // VkImageView vkImageView = static_cast<VkImageView>(*_imageView);
+    // VkDescriptorImageInfo descriptorImageInfo = {};
+    // descriptorImageInfo.sampler = sampler;
+    // descriptorImageInfo.imageView = vkImageView;
+    // descriptorImageInfo.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
+
 }
-    //TODO : pourquoi mapMemory n'a pas de valuer "WHOLE_MEMORY"
-    // move form  char * to Vulkan Buffer
-//    stagingBuffer.updateData(fontData, uploadSize, 0); // pas besoin d'une semaphore c'est synchrone cote CPU 
-//    stagingBuffer.unmapMemory();
-
-
-        // stagingBuffer.map();
-        // memcpy(stagingBuffer.mapped, fontData, uploadSize);
-        // stagingBuffer.unmap();
-
-
-// texture to framedata
-    // Create Command Buffer to move from buffer to Image
-
-    // Create Pipeline to render
-
-    // reussir a compiler <3
-
-// bool Gui::initDepthBuffers(const std::vector<std::unique_ptr<API::ImageView>>& /*imageViews*/) {
-//     return true;
-// }
-
-// bool Gui::initFramebuffers(const std::vector<std::unique_ptr<API::ImageView>>& /*imageViews*/) {
-//     return true;
-// }
 
 } // Vulkan
 } // Graphics
