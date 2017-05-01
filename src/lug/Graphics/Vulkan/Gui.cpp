@@ -174,6 +174,27 @@ void Gui::createFontsTexture() {
 //        commandBuffer.destroy();
 //        stagingBuffer.destroy();
     }
+
+    // Font texture Sampler
+    {
+        VkSampler sampler;
+        VkSamplerCreateInfo samplerInfo = {};
+        samplerInfo.magFilter = VK_FILTER_LINEAR;
+        samplerInfo.minFilter = VK_FILTER_LINEAR;
+        samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+        samplerInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+        samplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+        samplerInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+        samplerInfo.borderColor = VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE;
+        vkCreateSampler(static_cast<VkDevice>(_renderer.getDevice()), &samplerInfo, nullptr, &sampler);
+
+        VkImageView vkImageView = _imageView;
+
+        VkDescriptorImageInfo descriptorImageInfo = {};
+        descriptorImageInfo.sampler = sampler;
+        descriptorImageInfo.imageView = vkImageView;
+        descriptorImageInfo.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
+    }
 }
     //TODO : pourquoi mapMemory n'a pas de valuer "WHOLE_MEMORY"
     // move form  char * to Vulkan Buffer
