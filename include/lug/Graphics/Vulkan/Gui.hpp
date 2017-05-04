@@ -58,7 +58,7 @@ private:
     std::unique_ptr<Vulkan::API::DescriptorSetLayout> _descriptorSetLayout;
     VkSampler _sampler;
     Vulkan::API::DescriptorPool _descriptorPool;
-    DescriptorSet _descriptorSet;
+    VkDescriptorSet _descriptorSet;
 
 
     // API::Queue* _graphicsQueue{nullptr};

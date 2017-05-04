@@ -192,7 +192,7 @@ void Gui::createFontsTexture() {
     {
         // creating descriptor pool
         VkDescriptorPoolSize descriptorPoolSize;
-        descriptorPoolSize.VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+        descriptorPoolSize.type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
         descriptorPoolSize.descriptorCount = 1;
 
         VkDescriptorPoolCreateInfo descriptorPoolCreateInfo;
@@ -200,12 +200,13 @@ void Gui::createFontsTexture() {
         descriptorPoolCreateInfo.pNext = nullptr;
         descriptorPoolCreateInfo.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
         descriptorPoolCreateInfo.maxSets = 1;
-        descriptorPoolCreateInfo.pPoolSizes = 1;
+        descriptorPoolCreateInfo.poolSizeCount = 1;
         descriptorPoolCreateInfo.pPoolSizes = &descriptorPoolSize;
     
-        VkDescriptorPool descPool = vkCreateDescriptorPool(_renderer.getDevice(), &descriptorPoolCreateInfo, nullptr);
+        VkDescriptorPool descPool;
+        vkCreateDescriptorPool(static_cast<VkDevice>(_renderer.getDevice()), &descriptorPoolCreateInfo, nullptr, &descPool);
 
-        _descriptorPool = Vulkan::API::DescriptorPool(descPool, _renderer.getDevice());
+        _descriptorPool = Vulkan::API::DescriptorPool(descPool, &_renderer.getDevice());
 
 
         // descriptorSetLayout
@@ -213,19 +214,19 @@ void Gui::createFontsTexture() {
         descriptorLayoutBinding.binding = 0;   // maybe modify that when shader is coded
         descriptorLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
         descriptorLayoutBinding.descriptorCount = 1;
-        descriptorLayoutBinding.VK_SHADER_STAGE_FRAGMENT_BIT;
+        descriptorLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
         descriptorLayoutBinding.pImmutableSamplers = nullptr;
 
-        _descriptorSetLayout = Vulkan::API::DescriptorSetLayout::create(_renderer.getDevice(), &descriptorLayoutBinding, 1);
+        _descriptorSetLayout = Vulkan::API::DescriptorSetLayout::create(&_renderer.getDevice(), &descriptorLayoutBinding, 1);
 
 
         // create descriptor set
-        _descriptorSet = _descriptorPool.createDescriptorSets({static_cast<VkDescriptorSetLayout>(*_descriptorSetLayout)})[0];
+        _descriptorSet = static_cast<VkDescriptorSet>(_descriptorPool.createDescriptorSets({static_cast<VkDescriptorSetLayout>(*_descriptorSetLayout)})[0]);
 
         // write descriptor set
         VkDescriptorImageInfo descriptorImageInfo;
         descriptorImageInfo.sampler = _sampler;
-        descriptorImageInfo.imageView = static_cast<VkImageLayout>(*_imageView);
+        descriptorImageInfo.imageView = static_cast<VkImageView>(*_imageView);
         descriptorImageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 
         VkWriteDescriptorSet write{
@@ -243,7 +244,7 @@ void Gui::createFontsTexture() {
 
 
         // update descriptor set
-        vkUpdateDescriptorSets(s_renderer.getDevice(), 1, &write, 0, nullptr);
+        vkUpdateDescriptorSets(static_cast<VkDevice>(_renderer.getDevice()), 1, &write, 0, nullptr);
     }
 
     // VkImageView vkImageView = static_cast<VkImageView>(*_imageView);
