@@ -60,7 +60,6 @@ private:
     Vulkan::API::DescriptorPool _descriptorPool;
     VkDescriptorSet _descriptorSet;
 
-
     // API::Queue* _graphicsQueue{nullptr};
     // API::Queue* _Queue{nullptr};
 

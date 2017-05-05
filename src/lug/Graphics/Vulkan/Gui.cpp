@@ -257,12 +257,13 @@ void Gui::createFontsTexture() {
         }
     };
 
+    VkDescriptorSetLayout set_layout[1] = { static_cast<VkDescriptorSetLayout>(*_descriptorSetLayout) };
     VkPipelineLayoutCreateInfo createInfo{
         createInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
         createInfo.pNext = nullptr,
         createInfo.flags = 0,
         createInfo.setLayoutCount = 1,
-        createInfo.pSetLayouts = &_descriptorSet,
+        createInfo.pSetLayouts = set_layout,
         createInfo.pushConstantRangeCount = 1,
         createInfo.pPushConstantRanges = pushConstants
     };
@@ -436,39 +437,40 @@ void Gui::createFontsTexture() {
         fragmentShaderStage
     };
 
-    auto renderPass = RenderPass::create(device, colorFormat);
+    auto colorFormat = _renderView->getFormat().format;
+    auto renderPass = Vulkan::API::RenderPass::create(device, colorFormat);
 
-    VkGraphicsPipelineCreateInfo createInfo{
-        createInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
-        createInfo.pNext = nullptr,
-        createInfo.flags = 0,
-        createInfo.stageCount = 2,
-        createInfo.pStages = shaderStages,
-        createInfo.pVertexInputState = &vertexInputInfo,
-        createInfo.pInputAssemblyState = &inputAssemblyInfo,
-        createInfo.pTessellationState = nullptr,
-        createInfo.pViewportState = &viewportState,
-        createInfo.pRasterizationState = &rasterizer,
-        createInfo.pMultisampleState = &multisampling,
-        createInfo.pDepthStencilState = &depthStencil,
-        createInfo.pColorBlendState = &colorBlending,
-        createInfo.pDynamicState = &dynamicStateInfo,
-        createInfo.layout = &pipelineLayout,
-        createInfo.renderPass = static_cast<VkRenderPass>(*renderPass),
-        createInfo.subpass = 0,
-        createInfo.basePipelineHandle = VK_NULL_HANDLE,
-        createInfo.basePipelineIndex = 0
+    VkGraphicsPipelineCreateInfo graphicPipelineCreateInfo{
+        graphicPipelineCreateInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
+        graphicPipelineCreateInfo.pNext = nullptr,
+        graphicPipelineCreateInfo.flags = 0,
+        graphicPipelineCreateInfo.stageCount = 2,
+        graphicPipelineCreateInfo.pStages = shaderStages,
+        graphicPipelineCreateInfo.pVertexInputState = &vertexInputInfo,
+        graphicPipelineCreateInfo.pInputAssemblyState = &inputAssemblyInfo,
+        graphicPipelineCreateInfo.pTessellationState = nullptr,
+        graphicPipelineCreateInfo.pViewportState = &viewportState,
+        graphicPipelineCreateInfo.pRasterizationState = &rasterizer,
+        graphicPipelineCreateInfo.pMultisampleState = &multisampling,
+        graphicPipelineCreateInfo.pDepthStencilState = &depthStencil,
+        graphicPipelineCreateInfo.pColorBlendState = &colorBlending,
+        graphicPipelineCreateInfo.pDynamicState = &dynamicStateInfo,
+        graphicPipelineCreateInfo.layout = pipelineLayout,
+        graphicPipelineCreateInfo.renderPass = static_cast<VkRenderPass>(*renderPass),
+        graphicPipelineCreateInfo.subpass = 0,
+        graphicPipelineCreateInfo.basePipelineHandle = VK_NULL_HANDLE,
+        graphicPipelineCreateInfo.basePipelineIndex = 0
     };
 
     VkPipeline pipeline = VK_NULL_HANDLE;
 
     // TODO: create with VkPipelineCache
     // TODO: create multiple pipelines with one call
-    VkResult result = vkCreateGraphicsPipelines(static_cast<VkDevice>(*device), VK_NULL_HANDLE, 1, &createInfo, nullptr, &pipeline);
+    VkResult result = vkCreateGraphicsPipelines(static_cast<VkDevice>(*device), VK_NULL_HANDLE, 1, &graphicPipelineCreateInfo, nullptr, &pipeline);
 
     if (result != VK_SUCCESS) {
         LUG_LOG.error("RendererVulkan: Can't create graphics pipeline: {}", result);
-        return nullptr;
+        return ;
     }
 
 
