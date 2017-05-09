@@ -31,7 +31,7 @@ class LUG_GRAPHICS_API Gui {
 public:
     Gui() = delete;
 
-    Gui(Renderer& renderer);
+    Gui(Renderer& renderer, Render::Window &window);
 
     Gui(const Gui&) = delete;
 //    Gui(lug::Graphics::Render::Window&&) = delete;
@@ -51,6 +51,7 @@ public:
 private:
 
     Renderer& _renderer;
+    Render::Window& _window;
     Vulkan::API::Fence _fence;
     std::unique_ptr<API::Image> _image = nullptr;
     std::unique_ptr<API::ImageView> _imageView = nullptr;

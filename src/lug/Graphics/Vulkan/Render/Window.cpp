@@ -21,7 +21,7 @@ namespace Vulkan {
 namespace Render {
 
 Window::Window(Renderer& renderer) : _renderer(renderer) {
-    _imGuiInstance = std::make_unique<Gui>(_renderer);
+    _imGuiInstance = std::make_unique<Gui>(_renderer, *this);
     _imGuiInstance->createFontsTexture();
 }
 

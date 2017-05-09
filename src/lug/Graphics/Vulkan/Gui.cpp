@@ -20,6 +20,7 @@
 // #include <lug/System/Logger/Logger.hpp>
 
 #include <lug/Graphics/Vulkan/API/Fence.hpp>
+#include <lug/Graphics/Vulkan/API/ShaderModule.hpp>
 #include <lug/Graphics/Render/dear_imgui/imgui.h>
 
 #include <lug/Graphics/Vulkan/Gui.hpp>
@@ -29,7 +30,8 @@ namespace Graphics {
 namespace Vulkan {
 
 
-Gui::Gui(Renderer &renderer) : _renderer(renderer) {}
+Gui::Gui(Renderer &renderer, Render::Window &window) : _renderer(renderer), _window(window) {
+}
 
 Gui::~Gui() {
 }
@@ -65,8 +67,8 @@ void Gui::createFontsTexture() {
     // find format available on the device 
     VkFormat imagesFormat = API::Image::findSupportedFormat(device,
                                                        {VK_FORMAT_R8G8B8A8_UNORM, VK_FORMAT_D32_SFLOAT, VK_FORMAT_D32_SFLOAT_S8_UINT, VK_FORMAT_D24_UNORM_S8_UINT},
-                                                       VK_IMAGE_TILING_OPTIMAL,
-                                                       VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT);
+                                                        VK_IMAGE_TILING_OPTIMAL,
+                                                        VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT|VK_FORMAT_FEATURE_TRANSFER_DST_BIT_KHR);
 
     VkExtent3D extent {
         extent.width = texWidth,
@@ -86,7 +88,7 @@ void Gui::createFontsTexture() {
 
         _image = API::Image::create(device, imagesFormat, extent, VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT);
         if (!_image) {
-            LUG_LOG.error("Forward: Can't create depth buffer image");
+            LUG_LOG.error("GUI: Can't create depth buffer image");
             return ;
         }
 
@@ -97,7 +99,7 @@ void Gui::createFontsTexture() {
         // Allocate image requirements size for image
         _fontsTextureHostMemory = API::DeviceMemory::allocate(device, imageRequirements.size, memoryTypeIndex);
         if (!_fontsTextureHostMemory) {
-            LUG_LOG.error("Forward: Can't allocate device memory for depth buffer images");
+            LUG_LOG.error("GUI: Can't allocate device memory for depth buffer images");
             return ;
         }
 
@@ -132,52 +134,85 @@ void Gui::createFontsTexture() {
         uint32_t memoryTypeIndex = API::DeviceMemory::findMemoryType(device, requirements, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
         auto fontsTextureDeviceMemory = API::DeviceMemory::allocate(device, requirements.size, memoryTypeIndex);
         if (!fontsTextureDeviceMemory) {
+            LUG_LOG.error("GUI: Can't allocate device memory");
             return ;
         }
 
         stagingBuffer->bindMemory(fontsTextureDeviceMemory.get());
         stagingBuffer->updateData(fontData, (uint32_t)uploadSize);
-    }
 
-    // Copy buffer data to font image
-    {
-        auto commandBuffer = transfertQueue->getCommandPool().createCommandBuffers();
-
-        // Fence
+        // Copy buffer data to font image
         {
-            VkFence fence;
-            VkFenceCreateInfo createInfo{
-                createInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
-                createInfo.pNext = nullptr,
-                createInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT
-            };
-            VkResult result = vkCreateFence(static_cast<VkDevice>(_renderer.getDevice()), &createInfo, nullptr, &fence);
-            if (result != VK_SUCCESS) {
-                LUG_LOG.error("RendererVulkan: Can't create swapchain fence: {}", result);
-                return ;
-            }
-            _fence = Vulkan::API::Fence(fence, &_renderer.getDevice());
+            auto commandBuffer = transfertQueue->getCommandPool().createCommandBuffers();
 
-            if (transfertQueue->submit(commandBuffer[0], {}, {}, {}, fence) == false) {
-                LUG_LOG.error("Gui: Can't submit commandBuffer");
+            // Fence
+            {
+                VkFence fence;
+                VkFenceCreateInfo createInfo{
+                    createInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
+                    createInfo.pNext = nullptr,
+                    createInfo.flags = 0
+                };
+                VkResult result = vkCreateFence(static_cast<VkDevice>(_renderer.getDevice()), &createInfo, nullptr, &fence);
+                if (result != VK_SUCCESS) {
+                    LUG_LOG.error("GUI: Can't create swapchain fence: {}", result);
+                    return ;
+                }
+                _fence = Vulkan::API::Fence(fence, &_renderer.getDevice());
+
+                commandBuffer[0].begin();
+                // Prepare for transfer
+                _image->changeLayout(commandBuffer[0], 0, VK_ACCESS_TRANSFER_WRITE_BIT,
+                                     VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                                     VK_PIPELINE_STAGE_HOST_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT);
+
+                // Copy
+                VkBufferImageCopy bufferCopyRegion = {};
+                bufferCopyRegion.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+                bufferCopyRegion.imageSubresource.layerCount = 1;
+                bufferCopyRegion.imageExtent.width = texWidth;
+                bufferCopyRegion.imageExtent.height = texHeight;
+                bufferCopyRegion.imageExtent.depth = 1;
+
+                vkCmdCopyBufferToImage(
+                    static_cast<VkCommandBuffer>(commandBuffer[0]),
+                    static_cast<VkBuffer>(*stagingBuffer),
+                    static_cast<VkImage>(*_image),
+                    VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                    1,
+                    &bufferCopyRegion
+                );
+
+                // Prepare for shader read
+                _image->changeLayout(commandBuffer[0], VK_ACCESS_TRANSFER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT,
+                    VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+                    VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT);
+
+                commandBuffer[0].end();
+                if (transfertQueue->submit(commandBuffer[0], {}, {}, {}, fence) == false) {
+                    LUG_LOG.error("GUI: Can't submit commandBuffer");
+                    return;
+                }
+            }
+
+            // TODO : set a define for the fence timeout 
+            if (_fence.wait() == false) {
+                LUG_LOG.error("Gui: Can't vkWaitForFences");
                 return;
             }
-        }
-
-        // TODO : set a define for the fence timeout 
-        if (_fence.wait() == false) {
-            LUG_LOG.error("Gui: Can't vkWaitForFences");
-            return;
-        }
  
-        _fence.destroy();
-//        commandBuffer.destroy();
-//        stagingBuffer.destroy();
+            _fence.destroy();
+//            commandBuffer.destroy();
+//            stagingBuffer.destroy();
+        }
     }
 
     // Font texture Sampler
     {
         VkSamplerCreateInfo samplerInfo = {};
+        samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+        samplerInfo.pNext = nullptr;
+        samplerInfo.flags = 0;
         samplerInfo.magFilter = VK_FILTER_LINEAR;
         samplerInfo.minFilter = VK_FILTER_LINEAR;
         samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
@@ -256,7 +291,6 @@ void Gui::createFontsTexture() {
             pushConstants[0].size = sizeof(Math::Mat4x4f)
         }
     };
-
     VkDescriptorSetLayout set_layout[1] = { static_cast<VkDescriptorSetLayout>(*_descriptorSetLayout) };
     VkPipelineLayoutCreateInfo createInfo{
         createInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
@@ -269,11 +303,13 @@ void Gui::createFontsTexture() {
     };
 
     VkPipelineLayout pipelineLayout = VK_NULL_HANDLE;
-    VkResult result = vkCreatePipelineLayout(static_cast<VkDevice>(_renderer.getDevice()), &createInfo, nullptr, &pipelineLayout);
+    {
+        VkResult result = vkCreatePipelineLayout(static_cast<VkDevice>(_renderer.getDevice()), &createInfo, nullptr, &pipelineLayout);
 
-    if (result != VK_SUCCESS) {
-        LUG_LOG.error("RendererVulkan: Can't create pipeline layout: {}", result);
-        return;
+        if (result != VK_SUCCESS) {
+            LUG_LOG.error("GUI: Can't create pipeline layout: {}", result);
+            return;
+        }
     }
 
     VkVertexInputAttributeDescription vertexInputAttributesDesc[3] = {
@@ -281,26 +317,26 @@ void Gui::createFontsTexture() {
             vertexInputAttributesDesc[0].location = 0,
             vertexInputAttributesDesc[0].binding = 0,
             vertexInputAttributesDesc[0].format = VK_FORMAT_R32G32B32_SFLOAT,
-            vertexInputAttributesDesc[0].offset = 0
+            vertexInputAttributesDesc[0].offset = offsetof(ImDrawVert, pos)
         },
         {
             vertexInputAttributesDesc[1].location = 1,
             vertexInputAttributesDesc[1].binding = 0,
             vertexInputAttributesDesc[1].format = VK_FORMAT_R32G32_SFLOAT,
-            vertexInputAttributesDesc[1].offset = offsetof(Render::Mesh::Vertex, uv)
+            vertexInputAttributesDesc[1].offset = offsetof(ImDrawVert, uv)
         },
         {
             vertexInputAttributesDesc[2].location = 2,
             vertexInputAttributesDesc[2].binding = 0,
-            vertexInputAttributesDesc[2].format = VK_FORMAT_R32G32B32_SFLOAT,
-            vertexInputAttributesDesc[2].offset = offsetof(Render::Mesh::Vertex, color)
+            vertexInputAttributesDesc[2].format = VK_FORMAT_R8G8B8A8_UNORM,
+            vertexInputAttributesDesc[2].offset = offsetof(ImDrawVert, col)
         }
     };
 
 
     VkVertexInputBindingDescription vertexInputBindingDesc{
         vertexInputBindingDesc.binding = 0,
-        vertexInputBindingDesc.stride = sizeof(Render::Mesh::Vertex) - sizeof(Render::Mesh::Vertex::normal),
+        vertexInputBindingDesc.stride = sizeof(ImDrawVert),
         vertexInputBindingDesc.inputRate = VK_VERTEX_INPUT_RATE_VERTEX
     };
 
@@ -331,8 +367,8 @@ void Gui::createFontsTexture() {
         rasterizer.depthClampEnable = VK_FALSE,
         rasterizer.rasterizerDiscardEnable = VK_FALSE,
         rasterizer.polygonMode = VK_POLYGON_MODE_FILL,
-        rasterizer.cullMode = VK_CULL_MODE_BACK_BIT,
-        rasterizer.frontFace = VK_FRONT_FACE_CLOCKWISE,
+        rasterizer.cullMode = VK_CULL_MODE_NONE,
+        rasterizer.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE,
         rasterizer.depthBiasEnable = VK_FALSE,
         rasterizer.depthBiasConstantFactor = 0.0f,
         rasterizer.depthBiasClamp = 0.0f,
@@ -356,8 +392,8 @@ void Gui::createFontsTexture() {
         depthStencil.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO,
         depthStencil.pNext = nullptr,
         depthStencil.flags = 0,
-        depthStencil.depthTestEnable = VK_TRUE,
-        depthStencil.depthWriteEnable = VK_TRUE,
+        depthStencil.depthTestEnable = VK_FALSE,
+        depthStencil.depthWriteEnable = VK_FALSE,
         depthStencil.depthCompareOp = VK_COMPARE_OP_LESS_OR_EQUAL,
         depthStencil.depthBoundsTestEnable = VK_FALSE,
         depthStencil.stencilTestEnable = VK_FALSE,
@@ -369,11 +405,11 @@ void Gui::createFontsTexture() {
 
     VkPipelineColorBlendAttachmentState colorBlendAttachment{
         colorBlendAttachment.blendEnable = VK_TRUE,
-        colorBlendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_ONE,
-        colorBlendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_CONSTANT_COLOR,
+        colorBlendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA,
+        colorBlendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
         colorBlendAttachment.colorBlendOp = VK_BLEND_OP_ADD,
-        colorBlendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE,
-        colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_CONSTANT_COLOR,
+        colorBlendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
+        colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO,
         colorBlendAttachment.alphaBlendOp = VK_BLEND_OP_ADD,
         colorBlendAttachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT
     };
@@ -420,24 +456,58 @@ void Gui::createFontsTexture() {
 
     const VkDynamicState dynamicStates[] = {
         VK_DYNAMIC_STATE_VIEWPORT,
-        VK_DYNAMIC_STATE_SCISSOR,
-        VK_DYNAMIC_STATE_BLEND_CONSTANTS
+        VK_DYNAMIC_STATE_SCISSOR
     };
 
     VkPipelineDynamicStateCreateInfo dynamicStateInfo{
         dynamicStateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO,
         dynamicStateInfo.pNext = nullptr,
         dynamicStateInfo.flags = 0,
-        dynamicStateInfo.dynamicStateCount = 3,
+        dynamicStateInfo.dynamicStateCount = 2,
         dynamicStateInfo.pDynamicStates = dynamicStates
     };
+
+    auto vertexShader = API::ShaderModule::create(_renderer.getInfo().shadersRoot + "gui.vert.spv", device);
+    auto fragmentShader = API::ShaderModule::create(_renderer.getInfo().shadersRoot + "gui.frag.spv", device);
+
+    if (vertexShader == nullptr || fragmentShader == nullptr) {
+        if (vertexShader == nullptr) {
+            LUG_LOG.error("GUI: Can't create create gui vertex shader");
+        }
+        if (fragmentShader == nullptr) {
+            LUG_LOG.error("GUI: Can't create create gui fragment shader");
+        }
+        return ;
+    }
+
+    // Vertex shader stage
+    VkPipelineShaderStageCreateInfo vertexShaderStage{
+        vertexShaderStage.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
+        vertexShaderStage.pNext = nullptr,
+        vertexShaderStage.flags = 0,
+        vertexShaderStage.stage = VK_SHADER_STAGE_VERTEX_BIT,
+        vertexShaderStage.module = static_cast<VkShaderModule>(*vertexShader),
+        vertexShaderStage.pName = "main",
+        vertexShaderStage.pSpecializationInfo = nullptr
+    };
+
+    // Fragment shader stage
+    VkPipelineShaderStageCreateInfo fragmentShaderStage{
+        fragmentShaderStage.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
+        fragmentShaderStage.pNext = nullptr,
+        fragmentShaderStage.flags = 0,
+        fragmentShaderStage.stage = VK_SHADER_STAGE_FRAGMENT_BIT,
+        fragmentShaderStage.module = static_cast<VkShaderModule>(*fragmentShader),
+        fragmentShaderStage.pName = "main",
+        fragmentShaderStage.pSpecializationInfo = nullptr
+    };
+
 
     VkPipelineShaderStageCreateInfo shaderStages[]{
         vertexShaderStage,
         fragmentShaderStage
     };
-
-    auto colorFormat = _renderView->getFormat().format;
+    auto colorFormat = _window.getSwapchain().getFormat().format;
     auto renderPass = Vulkan::API::RenderPass::create(device, colorFormat);
 
     VkGraphicsPipelineCreateInfo graphicPipelineCreateInfo{
@@ -463,16 +533,16 @@ void Gui::createFontsTexture() {
     };
 
     VkPipeline pipeline = VK_NULL_HANDLE;
+    {
+        // TODO: create with VkPipelineCache
+        // TODO: create multiple pipelines with one call
+        VkResult result = vkCreateGraphicsPipelines(static_cast<VkDevice>(*device), VK_NULL_HANDLE, 1, &graphicPipelineCreateInfo, nullptr, &pipeline);
 
-    // TODO: create with VkPipelineCache
-    // TODO: create multiple pipelines with one call
-    VkResult result = vkCreateGraphicsPipelines(static_cast<VkDevice>(*device), VK_NULL_HANDLE, 1, &graphicPipelineCreateInfo, nullptr, &pipeline);
-
-    if (result != VK_SUCCESS) {
-        LUG_LOG.error("RendererVulkan: Can't create graphics pipeline: {}", result);
-        return ;
+        if (result != VK_SUCCESS) {
+            LUG_LOG.error("RendererVulkan: Can't create graphics pipeline: {}", result);
+            return ;
+        }
     }
-
 
 }
 
