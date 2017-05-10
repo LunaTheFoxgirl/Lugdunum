@@ -70,6 +70,14 @@ bool Gui::createFontsTexture() {
                                                         VK_IMAGE_TILING_OPTIMAL,
                                                         VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT|VK_FORMAT_FEATURE_TRANSFER_DST_BIT_KHR);
 
+
+    if (imagesFormat == VK_FORMAT_UNDEFINED)
+    {
+        LUG_LOG.error("GUI: Can't find any supported Format");
+        return false;
+    }
+
+
     VkExtent3D extent {
         extent.width = texWidth,
         extent.height = texHeight,

@@ -175,7 +175,6 @@ bool Image::isFormatSupported(const Device* device, VkFormat format, VkImageTili
     const PhysicalDeviceInfo* physicalDeviceInfo = device->getPhysicalDeviceInfo();
 
     if (physicalDeviceInfo->formatProperties.find(format) == physicalDeviceInfo->formatProperties.end()) {
-        LUG_LOG.warn("Image::isFormatSupported: the format does not exists in physicalDeviceInfo->formatProperties");
         return false;
     }
 
@@ -183,11 +182,12 @@ bool Image::isFormatSupported(const Device* device, VkFormat format, VkImageTili
 
     if (tiling == VK_IMAGE_TILING_LINEAR && (formatProperties.linearTilingFeatures & features) == features) {
         return true;
-    } else if (tiling == VK_IMAGE_TILING_OPTIMAL && (formatProperties.optimalTilingFeatures & features) == features) {
-        return false;
+    }
+    else if (tiling == VK_IMAGE_TILING_OPTIMAL && (formatProperties.optimalTilingFeatures & features) == features) {
+        return true;
     }
 
-    return true;
+    return false;
 }
 
 } // API
