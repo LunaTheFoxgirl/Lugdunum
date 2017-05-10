@@ -53,7 +53,7 @@ Gui::~Gui() {
 // void Gui::destroy() {
 // }
 
-void Gui::createFontsTexture() {
+bool Gui::createFontsTexture() {
     ImGuiIO& io = ImGui::GetIO();
 
     // Create font texture
@@ -89,7 +89,7 @@ void Gui::createFontsTexture() {
         _image = API::Image::create(device, imagesFormat, extent, VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT);
         if (!_image) {
             LUG_LOG.error("GUI: Can't create depth buffer image");
-            return ;
+            return false;
         }
 
         auto& imageRequirements = _image->getRequirements();
@@ -100,7 +100,7 @@ void Gui::createFontsTexture() {
         _fontsTextureHostMemory = API::DeviceMemory::allocate(device, imageRequirements.size, memoryTypeIndex);
         if (!_fontsTextureHostMemory) {
             LUG_LOG.error("GUI: Can't allocate device memory for depth buffer images");
-            return ;
+            return false;
         }
 
         // Bind memory to image
@@ -113,7 +113,7 @@ void Gui::createFontsTexture() {
         _imageView = API::ImageView::create(device, _image.get(), imagesFormat, VK_IMAGE_ASPECT_COLOR_BIT);
         if (!_imageView) {
             LUG_LOG.error("GUI: Can't create image view");
-            return;
+            return false;
         }
     }
 
@@ -127,7 +127,7 @@ void Gui::createFontsTexture() {
         auto stagingBuffer = API::Buffer::create(device, (uint32_t)queueFamilyIndices.size(), queueFamilyIndices.data(), uploadSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, 0, VK_SHARING_MODE_EXCLUSIVE);
         if (!stagingBuffer) {
             LUG_LOG.error("GUI: Can't create buffer");
-            return ;
+            return false;
         }
 
         auto& requirements = stagingBuffer->getRequirements();
@@ -135,7 +135,7 @@ void Gui::createFontsTexture() {
         auto fontsTextureDeviceMemory = API::DeviceMemory::allocate(device, requirements.size, memoryTypeIndex);
         if (!fontsTextureDeviceMemory) {
             LUG_LOG.error("GUI: Can't allocate device memory");
-            return ;
+            return false;
         }
 
         stagingBuffer->bindMemory(fontsTextureDeviceMemory.get());
@@ -156,7 +156,7 @@ void Gui::createFontsTexture() {
                 VkResult result = vkCreateFence(static_cast<VkDevice>(_renderer.getDevice()), &createInfo, nullptr, &fence);
                 if (result != VK_SUCCESS) {
                     LUG_LOG.error("GUI: Can't create swapchain fence: {}", result);
-                    return ;
+                    return false;
                 }
                 _fence = Vulkan::API::Fence(fence, &_renderer.getDevice());
 
@@ -191,14 +191,14 @@ void Gui::createFontsTexture() {
                 commandBuffer[0].end();
                 if (transfertQueue->submit(commandBuffer[0], {}, {}, {}, fence) == false) {
                     LUG_LOG.error("GUI: Can't submit commandBuffer");
-                    return;
+                    return false;
                 }
             }
 
             // TODO : set a define for the fence timeout 
             if (_fence.wait() == false) {
                 LUG_LOG.error("Gui: Can't vkWaitForFences");
-                return;
+                return false;
             }
  
             _fence.destroy();
@@ -308,7 +308,7 @@ void Gui::createFontsTexture() {
 
         if (result != VK_SUCCESS) {
             LUG_LOG.error("GUI: Can't create pipeline layout: {}", result);
-            return;
+            return false;
         }
     }
 
@@ -477,7 +477,7 @@ void Gui::createFontsTexture() {
         if (fragmentShader == nullptr) {
             LUG_LOG.error("GUI: Can't create create gui fragment shader");
         }
-        return ;
+        return false;
     }
 
     // Vertex shader stage
@@ -540,10 +540,11 @@ void Gui::createFontsTexture() {
 
         if (result != VK_SUCCESS) {
             LUG_LOG.error("RendererVulkan: Can't create graphics pipeline: {}", result);
-            return ;
+            return false;
         }
     }
 
+    return true;
 }
 
 } // Vulkan

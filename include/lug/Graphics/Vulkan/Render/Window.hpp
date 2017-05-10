@@ -69,6 +69,7 @@ private:
     bool initDescriptorPool();
     bool initSurface();
     bool initSwapchainCapabilities();
+    bool initGui();
     bool initPresentQueue();
     bool initSwapchain();
     bool initFramesData();

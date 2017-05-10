@@ -21,8 +21,6 @@ namespace Vulkan {
 namespace Render {
 
 Window::Window(Renderer& renderer) : _renderer(renderer) {
-    _imGuiInstance = std::make_unique<Gui>(_renderer, *this);
-    _imGuiInstance->createFontsTexture();
 }
 
 Window::~Window() {
@@ -321,6 +319,17 @@ bool Window::initSwapchainCapabilities() {
         }
     }
 
+    return true;
+}
+
+bool Window::initGui()
+{
+    _imGuiInstance = std::make_unique<Gui>(_renderer, *this);
+    if (!_imGuiInstance->createFontsTexture())
+    {
+        LUG_LOG.error("RendererWindow: Can't create font texture for Gui");
+        return false;
+    }
     return true;
 }
 
@@ -715,6 +724,8 @@ bool Window::initRender() {
             return false;
         }
     }
+
+    if (!initGui())  return false;
 
     return true;
 }
