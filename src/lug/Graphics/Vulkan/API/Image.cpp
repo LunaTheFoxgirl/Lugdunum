@@ -162,7 +162,7 @@ std::unique_ptr<Image> Image::create(
 
 VkFormat Image::findSupportedFormat(const Device* device, const std::vector<VkFormat>& formats, VkImageTiling tiling, VkFormatFeatureFlags features) {
     for (auto format: formats) {
-        if (!isFormatSupported(device, format, tiling, features)) {
+        if (isFormatSupported(device, format, tiling, features)) {
             return format;
         }
     }
