@@ -14,6 +14,10 @@
 // #include <lug/System/Clock.hpp>
 // #include <lug/Math/Vector.hpp>
 
+#include <lug/Graphics/Vulkan/API/Buffer.hpp>
+#include <lug/Graphics/Vulkan/API/DeviceMemory.hpp>
+#include <lug/Graphics/Vulkan/API/Framebuffer.hpp>
+#include <lug/Graphics/Vulkan/API/Pipeline.hpp>
 #include <lug/Graphics/Vulkan/Renderer.hpp>
 
 
@@ -41,15 +45,19 @@ public:
 
     ~Gui();
 
-    // bool beginFrame();   
+    bool beginFrame();
     // bool render();
-    // bool endFrame();
+    bool endFrame();
     // void destroy();
 
+    bool init(const std::vector<std::unique_ptr<API::ImageView>>& imageViews);
     bool createFontsTexture();
+    bool initFramebuffers(const std::vector<std::unique_ptr<API::ImageView>>& imageViews);
 
 private:
+    void updateBuffers();
 
+private:
     Renderer& _renderer;
     Render::Window& _window;
     Vulkan::API::Fence _fence;
@@ -60,6 +68,19 @@ private:
     VkSampler _sampler;
     Vulkan::API::DescriptorPool _descriptorPool;
     VkDescriptorSet _descriptorSet;
+    Vulkan::API::Pipeline _pipeline;
+    Vulkan::API::Framebuffer _framebuffer;
+
+    std::unique_ptr<Vulkan::API::Buffer> _indexBuffer{nullptr};
+    std::unique_ptr<Vulkan::API::Buffer> _vertexBuffer{nullptr};
+    std::unique_ptr<Vulkan::API::DeviceMemory> _vertexDeviceMemory{nullptr};
+    std::unique_ptr<Vulkan::API::DeviceMemory> _indexDeviceMemory{nullptr};
+
+    int vertexCount = 0;
+    int indexCount = 0;
+
+
+
 
     // API::Queue* _graphicsQueue{nullptr};
     // API::Queue* _Queue{nullptr};

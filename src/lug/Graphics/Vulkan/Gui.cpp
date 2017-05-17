@@ -36,22 +36,37 @@ Gui::Gui(Renderer &renderer, Render::Window &window) : _renderer(renderer), _win
 Gui::~Gui() {
 }
 
-// bool Gui::beginFrame()
-// {
-//     return false;
-// }
+bool Gui::beginFrame()
+{
+    ImGuiIO& io = ImGui::GetIO();
+
+    // TODO(Nokitoo): use window size
+    io.DisplaySize = ImVec2(800.0f, 600.0f);
+
+    ImGui::NewFrame();
+
+    ImGui::Text("Test");
+
+    ImGui::Render();
+    updateBuffers();
+    return false;
+}
 
 // bool Gui::render() {
 //     return true;
 // }
 
-// bool Gui::endFrame()
-// {
-//     return false;
-// }
+bool Gui::endFrame()
+{
+    return false;
+}
 
 // void Gui::destroy() {
 // }
+
+bool Gui::init(const std::vector<std::unique_ptr<API::ImageView>>& imageViews) {
+    return createFontsTexture() && initFramebuffers(imageViews);
+}
 
 bool Gui::createFontsTexture() {
     ImGuiIO& io = ImGui::GetIO();
@@ -64,16 +79,18 @@ bool Gui::createFontsTexture() {
 
     auto device = &_renderer.getDevice();
 
-    // find format available on the device 
-    VkFormat imagesFormat = API::Image::findSupportedFormat(device,
+    VkFormat imagesFormat = VK_FORMAT_R8G8B8A8_UNORM;
+    // TODO(Nokitoo): Check supported format (VK_FORMAT_FEATURE_TRANSFER_DST_BIT_KHR is not returned by vulkaninfo)
+    // find format available on the device
+/*    VkFormat imagesFormat = API::Image::findSupportedFormat(device,
                                                        {VK_FORMAT_R8G8B8A8_UNORM, VK_FORMAT_D32_SFLOAT, VK_FORMAT_D32_SFLOAT_S8_UINT, VK_FORMAT_D24_UNORM_S8_UINT},
                                                         VK_IMAGE_TILING_OPTIMAL,
-                                                        VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT|VK_FORMAT_FEATURE_TRANSFER_DST_BIT_KHR);
+                                                        VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT | VK_FORMAT_FEATURE_TRANSFER_DST_BIT_KHR);*/
 
 
     if (imagesFormat == VK_FORMAT_UNDEFINED)
     {
-        LUG_LOG.error("GUI: Can't find any supported Format");
+        LUG_LOG.error("Gui::createFontsTexture: Can't find any supported Format");
         return false;
     }
 
@@ -92,7 +109,7 @@ bool Gui::createFontsTexture() {
         // Create Vulkan Image
 
         // TODO chopper queue de graphics && transfert pour le rendre available sur les deux. Si les deux queue sont les meme alors renvoei qu'un seul int.
-        // si deux queue : mode de partage partager , si une seule, en exclusive 
+        // si deux queue : mode de partage partager , si une seule, en exclusive
 
         _image = API::Image::create(device, imagesFormat, extent, VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT);
         if (!_image) {
@@ -103,7 +120,7 @@ bool Gui::createFontsTexture() {
         auto& imageRequirements = _image->getRequirements();
 
         uint32_t memoryTypeIndex = API::DeviceMemory::findMemoryType(device, imageRequirements, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-   
+
         // Allocate image requirements size for image
         _fontsTextureHostMemory = API::DeviceMemory::allocate(device, imageRequirements.size, memoryTypeIndex);
         if (!_fontsTextureHostMemory) {
@@ -112,7 +129,7 @@ bool Gui::createFontsTexture() {
         }
 
         // Bind memory to image
-        _image->bindMemory(_fontsTextureHostMemory.get(), imageRequirements.size);
+        _image->bindMemory(_fontsTextureHostMemory.get());
     }
 
     // Create FontsTexture image view
@@ -131,7 +148,7 @@ bool Gui::createFontsTexture() {
 
 
         // TODO chopper queue de graphics && transfert pour le rendre available sur les deux. Si les deux queue sont les meme alors renvoei qu'un seul int.
-        // si deux queue : mode de partage partager , si une seule, en exclusive 
+        // si deux queue : mode de partage partager , si une seule, en exclusive
         auto stagingBuffer = API::Buffer::create(device, (uint32_t)queueFamilyIndices.size(), queueFamilyIndices.data(), uploadSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, 0, VK_SHARING_MODE_EXCLUSIVE);
         if (!stagingBuffer) {
             LUG_LOG.error("GUI: Can't create buffer");
@@ -203,12 +220,12 @@ bool Gui::createFontsTexture() {
                 }
             }
 
-            // TODO : set a define for the fence timeout 
+            // TODO : set a define for the fence timeout
             if (_fence.wait() == false) {
                 LUG_LOG.error("Gui: Can't vkWaitForFences");
                 return false;
             }
- 
+
             _fence.destroy();
 //            commandBuffer.destroy();
 //            stagingBuffer.destroy();
@@ -232,6 +249,7 @@ bool Gui::createFontsTexture() {
         vkCreateSampler(static_cast<VkDevice>(_renderer.getDevice()), &samplerInfo, nullptr, &_sampler);
     }
 
+    std::vector<std::unique_ptr<Vulkan::API::DescriptorSetLayout>> descriptorSetLayouts;
     {
         // creating descriptor pool
         VkDescriptorPoolSize descriptorPoolSize;
@@ -245,7 +263,7 @@ bool Gui::createFontsTexture() {
         descriptorPoolCreateInfo.maxSets = 1;
         descriptorPoolCreateInfo.poolSizeCount = 1;
         descriptorPoolCreateInfo.pPoolSizes = &descriptorPoolSize;
-    
+
         VkDescriptorPool descPool;
         vkCreateDescriptorPool(static_cast<VkDevice>(_renderer.getDevice()), &descriptorPoolCreateInfo, nullptr, &descPool);
 
@@ -260,11 +278,11 @@ bool Gui::createFontsTexture() {
         descriptorLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
         descriptorLayoutBinding.pImmutableSamplers = nullptr;
 
-        _descriptorSetLayout = Vulkan::API::DescriptorSetLayout::create(&_renderer.getDevice(), &descriptorLayoutBinding, 1);
+        descriptorSetLayouts.push_back(Vulkan::API::DescriptorSetLayout::create(&_renderer.getDevice(), &descriptorLayoutBinding, 1));
 
 
         // create descriptor set
-        _descriptorSet = static_cast<VkDescriptorSet>(_descriptorPool.createDescriptorSets({static_cast<VkDescriptorSetLayout>(*_descriptorSetLayout)})[0]);
+        _descriptorSet = static_cast<VkDescriptorSet>(_descriptorPool.createDescriptorSets({static_cast<VkDescriptorSetLayout>(*descriptorSetLayouts[0])})[0]);
 
         // write descriptor set
         VkDescriptorImageInfo descriptorImageInfo;
@@ -299,7 +317,7 @@ bool Gui::createFontsTexture() {
             pushConstants[0].size = sizeof(Math::Mat4x4f)
         }
     };
-    VkDescriptorSetLayout set_layout[1] = { static_cast<VkDescriptorSetLayout>(*_descriptorSetLayout) };
+    VkDescriptorSetLayout set_layout[1] = { static_cast<VkDescriptorSetLayout>(*descriptorSetLayouts[0]) };
     VkPipelineLayoutCreateInfo createInfo{
         createInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
         createInfo.pNext = nullptr,
@@ -310,15 +328,17 @@ bool Gui::createFontsTexture() {
         createInfo.pPushConstantRanges = pushConstants
     };
 
-    VkPipelineLayout pipelineLayout = VK_NULL_HANDLE;
+    VkPipelineLayout vkPipelineLayout = VK_NULL_HANDLE;
     {
-        VkResult result = vkCreatePipelineLayout(static_cast<VkDevice>(_renderer.getDevice()), &createInfo, nullptr, &pipelineLayout);
+        VkResult result = vkCreatePipelineLayout(static_cast<VkDevice>(_renderer.getDevice()), &createInfo, nullptr, &vkPipelineLayout);
 
         if (result != VK_SUCCESS) {
             LUG_LOG.error("GUI: Can't create pipeline layout: {}", result);
             return false;
         }
     }
+
+    std::unique_ptr<Vulkan::API::PipelineLayout> pipelineLayout = std::make_unique<Vulkan::API::PipelineLayout>(descriptorSetLayouts, vkPipelineLayout, device);
 
     VkVertexInputAttributeDescription vertexInputAttributesDesc[3] = {
         {
@@ -516,7 +536,64 @@ bool Gui::createFontsTexture() {
         fragmentShaderStage
     };
     auto colorFormat = _window.getSwapchain().getFormat().format;
-    auto renderPass = Vulkan::API::RenderPass::create(device, colorFormat);
+
+    // Create renderpass
+    std::unique_ptr<Vulkan::API::RenderPass> renderPass = nullptr;
+    {
+        VkAttachmentDescription attachments [1]{
+            // Color attachment
+            {
+                attachments[0].flags = 0,
+                attachments[0].format = colorFormat,
+                attachments[0].samples = VK_SAMPLE_COUNT_1_BIT,
+                attachments[0].loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
+                attachments[0].storeOp = VK_ATTACHMENT_STORE_OP_STORE,
+                attachments[0].stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
+                attachments[0].stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
+                attachments[0].initialLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+                attachments[0].finalLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
+            }
+        };
+
+        VkAttachmentReference colorAttachmentRef{
+            colorAttachmentRef.attachment = 0,
+            colorAttachmentRef.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
+        };
+
+        VkSubpassDescription subpass{
+            subpass.flags = 0,
+            subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS,
+            subpass.inputAttachmentCount = 0,
+            subpass.pInputAttachments = nullptr,
+            subpass.colorAttachmentCount = 1,
+            subpass.pColorAttachments = &colorAttachmentRef,
+            subpass.pResolveAttachments = nullptr,
+            subpass.pDepthStencilAttachment = nullptr,
+            subpass.preserveAttachmentCount = 0,
+            subpass.pPreserveAttachments = nullptr
+        };
+
+        VkRenderPassCreateInfo renderPassCreateInfo{
+            renderPassCreateInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO,
+            renderPassCreateInfo.pNext = nullptr,
+            renderPassCreateInfo.flags = 0,
+            renderPassCreateInfo.attachmentCount = 1,
+            renderPassCreateInfo.pAttachments = attachments,
+            renderPassCreateInfo.subpassCount = 1,
+            renderPassCreateInfo.pSubpasses = &subpass,
+            renderPassCreateInfo.dependencyCount = 0,
+            renderPassCreateInfo.pDependencies = nullptr
+        };
+
+        VkRenderPass vkRenderPass = VK_NULL_HANDLE;
+        VkResult result = vkCreateRenderPass(static_cast<VkDevice>(*device), &renderPassCreateInfo, nullptr, &vkRenderPass);
+        if (result != VK_SUCCESS) {
+            LUG_LOG.error("RendererVulkan: Can't create render pass: {}", result);
+            return nullptr;
+        }
+        renderPass = std::make_unique<Vulkan::API::RenderPass>(vkRenderPass, device);
+    }
+
 
     VkGraphicsPipelineCreateInfo graphicPipelineCreateInfo{
         graphicPipelineCreateInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
@@ -533,7 +610,7 @@ bool Gui::createFontsTexture() {
         graphicPipelineCreateInfo.pDepthStencilState = &depthStencil,
         graphicPipelineCreateInfo.pColorBlendState = &colorBlending,
         graphicPipelineCreateInfo.pDynamicState = &dynamicStateInfo,
-        graphicPipelineCreateInfo.layout = pipelineLayout,
+        graphicPipelineCreateInfo.layout = vkPipelineLayout,
         graphicPipelineCreateInfo.renderPass = static_cast<VkRenderPass>(*renderPass),
         graphicPipelineCreateInfo.subpass = 0,
         graphicPipelineCreateInfo.basePipelineHandle = VK_NULL_HANDLE,
@@ -552,7 +629,116 @@ bool Gui::createFontsTexture() {
         }
     }
 
+    _pipeline = Vulkan::API::Pipeline(pipeline, device, std::move(pipelineLayout), std::move(renderPass));
+
     return true;
+}
+
+bool Gui::initFramebuffers(const std::vector<std::unique_ptr<API::ImageView>>& imageViews) {
+    // The lights pipelines renderpass are compatible, so we don't need to create different frame buffers for each pipeline
+    API::RenderPass* renderPass = _pipeline.getRenderPass();
+    auto device = &_renderer.getDevice();
+
+    VkResult result;
+
+    for (size_t i = 0; i < imageViews.size(); i++) {
+        VkImageView attachments[1]{
+            static_cast<VkImageView>(*imageViews[i])
+        };
+
+        VkFramebufferCreateInfo framebufferInfo = {};
+        framebufferInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
+        framebufferInfo.renderPass = static_cast<VkRenderPass>(*renderPass);
+        framebufferInfo.attachmentCount = 1;
+        framebufferInfo.pAttachments = attachments;
+        framebufferInfo.width = imageViews[i]->getExtent().width;
+        framebufferInfo.height = imageViews[i]->getExtent().height;
+        framebufferInfo.layers = 1;
+
+        VkFramebuffer fb;
+        result = vkCreateFramebuffer(static_cast<VkDevice>(*device), &framebufferInfo, nullptr, &fb);
+        if (result != VK_SUCCESS) {
+            LUG_LOG.error("RendererVulkan: Failed to create framebuffer: {}", result);
+            return false;
+        }
+        // TODO: Remove the extent initializer list when struct Extent is externalised
+        _framebuffer.destroy();
+        _framebuffer = API::Framebuffer(fb, device, {imageViews[i]->getExtent().width, imageViews[i]->getExtent().height});
+    }
+
+    return true;
+}
+
+void    Gui::updateBuffers() {
+    ImDrawData* imDrawData = ImGui::GetDrawData();
+    if (!imDrawData) {
+        return;
+    }
+    auto device = &_renderer.getDevice();
+
+    // Note: Alignment is done inside buffer creation
+    VkDeviceSize vertexBufferSize = imDrawData->TotalVtxCount * sizeof(ImDrawVert);
+    VkDeviceSize indexBufferSize = imDrawData->TotalIdxCount * sizeof(ImDrawIdx);
+
+    // Update buffers only if vertex or index count has been changed compared to current buffer size
+
+    // Vertex buffer
+    if ((_vertexBuffer == nullptr) || (vertexCount != imDrawData->TotalVtxCount)) {
+        {
+            API::Queue* transfertQueue = _renderer.getQueue(VK_QUEUE_TRANSFER_BIT, false);
+            std::vector<uint32_t> queueFamilyIndices = {(uint32_t)transfertQueue->getFamilyIdx()};
+            _vertexBuffer = API::Buffer::create(device, (uint32_t)queueFamilyIndices.size(), queueFamilyIndices.data(), (uint32_t)vertexBufferSize, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT);
+            if (!_vertexBuffer)
+                return;
+
+            auto& requirements = _vertexBuffer->getRequirements();
+            uint32_t memoryTypeIndex = API::DeviceMemory::findMemoryType(device, requirements, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
+            _vertexDeviceMemory = API::DeviceMemory::allocate(device, requirements.size, memoryTypeIndex);
+            if (!_vertexDeviceMemory) {
+                return;
+            }
+
+            _vertexBuffer->bindMemory(_vertexDeviceMemory.get());
+        }
+
+        vertexCount = imDrawData->TotalVtxCount;
+    }
+
+    if ((_indexBuffer == nullptr) || (indexCount < imDrawData->TotalIdxCount)) {
+        {
+            API::Queue* transfertQueue = _renderer.getQueue(VK_QUEUE_TRANSFER_BIT, false);
+            std::vector<uint32_t> queueFamilyIndices = {(uint32_t)transfertQueue->getFamilyIdx()};
+            _indexBuffer = API::Buffer::create(device, (uint32_t)queueFamilyIndices.size(), queueFamilyIndices.data(), (uint32_t)indexBufferSize, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT);
+            if (!_indexBuffer)
+                return;
+
+            auto& requirements = _indexBuffer->getRequirements();
+            uint32_t memoryTypeIndex = API::DeviceMemory::findMemoryType(device, requirements, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
+            _indexDeviceMemory = API::DeviceMemory::allocate(device, requirements.size, memoryTypeIndex);
+            if (!_indexDeviceMemory) {
+                return;
+            }
+
+            _indexBuffer->bindMemory(_indexDeviceMemory.get());
+        }
+        indexCount = imDrawData->TotalIdxCount;
+    }
+
+    // Upload data
+    ImDrawVert* vtxDst = (ImDrawVert*)_vertexBuffer->getGpuPtr();
+    ImDrawIdx* idxDst = (ImDrawIdx*)_indexBuffer->getGpuPtr();
+
+    for (int n = 0; n < imDrawData->CmdListsCount; n++) {
+        const ImDrawList* cmd_list = imDrawData->CmdLists[n];
+        memcpy(vtxDst, cmd_list->VtxBuffer.Data, cmd_list->VtxBuffer.Size * sizeof(ImDrawVert));
+        memcpy(idxDst, cmd_list->IdxBuffer.Data, cmd_list->IdxBuffer.Size * sizeof(ImDrawIdx));
+        vtxDst += cmd_list->VtxBuffer.Size;
+        idxDst += cmd_list->IdxBuffer.Size;
+    }
+
+    // Flush to make writes visible to GPU
+/*    vertexBuffer.flush();
+    indexBuffer.flush();*/
 }
 
 } // Vulkan

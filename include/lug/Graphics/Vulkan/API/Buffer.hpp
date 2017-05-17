@@ -39,6 +39,8 @@ public:
 
     static uint32_t getSizeAligned(const Device* device, uint32_t size);
 
+    void* getGpuPtr();
+
     const VkMemoryRequirements& getRequirements() const;
 
     static std::unique_ptr<Buffer> create(
@@ -57,6 +59,7 @@ private:
     DeviceMemory* _deviceMemory{nullptr};
 
     VkMemoryRequirements _requirements{};
+    void*   _gpuPtr{nullptr};
 };
 
 } // API

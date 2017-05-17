@@ -45,6 +45,7 @@ bool Window::pollEvent(lug::Window::Event& event) {
 }
 
 bool Window::beginFrame() {
+    _imGuiInstance->beginFrame();
     AcquireImageData* acquireImageData = nullptr;
     // Retrieve free AcquireImageData
     {
@@ -168,12 +169,12 @@ bool Window::render() {
 
 //    _imGuiInstance.render();
     // texture to framedata
-    // queue transfert 
-    // tu transfert la data dans la texture 
+    // queue transfert
+    // tu transfert la data dans la texture
     // semaphore pour notifier le transfert // pas besoin avec buffer.movedata
-    // command buffer to dray la texture sur l'image final qui wait sur la semaphore --> peut etre stocker dans framedata vu que ca change pas 
-    // notifie un semaphore pour autoriser le draw 
-    // tu render sur l'image de la swapchain 
+    // command buffer to dray la texture sur l'image final qui wait sur la semaphore --> peut etre stocker dans framedata vu que ca change pas
+    // notifie un semaphore pour autoriser le draw
+    // tu render sur l'image de la swapchain
     return true;
 }
 
@@ -325,7 +326,7 @@ bool Window::initSwapchainCapabilities() {
 bool Window::initGui()
 {
     _imGuiInstance = std::make_unique<Gui>(_renderer, *this);
-    if (!_imGuiInstance->createFontsTexture())
+    if (!_imGuiInstance->init(_swapchain.getImagesViews()))
     {
         LUG_LOG.error("RendererWindow: Can't create font texture for Gui");
         return false;
@@ -569,7 +570,7 @@ bool Window::initFramesData() {
 //            if (result != VK_SUCCESS) {
 //                LUG_LOG.error("RendererVulkan: Can't create swapchain semaphore: {}", result);
 //                return false;
-//            }            
+//            }
 //            _framesData[i].guiFinishedSemaphore = API::Semaphore(semaphore, &_renderer.getDevice());
 
         }

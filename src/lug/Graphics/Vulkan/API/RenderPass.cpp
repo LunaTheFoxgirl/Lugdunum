@@ -85,9 +85,10 @@ std::unique_ptr<RenderPass> RenderPass::create(const Device* device, VkFormat co
         VK_IMAGE_TILING_OPTIMAL,
         VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT
     );
+
     if (depthFormat == VK_FORMAT_UNDEFINED) {
-        LUG_LOG.error("RenderPass: Can't find supported format");
-        return nullptr;
+        LUG_LOG.error("RenderPass::create: Can't find any supported Format for depth buffer");
+        return false;
     }
 
     VkAttachmentDescription attachments[2]{

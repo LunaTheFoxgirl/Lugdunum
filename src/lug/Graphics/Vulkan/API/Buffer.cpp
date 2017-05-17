@@ -59,15 +59,14 @@ void Buffer::bindMemory(DeviceMemory* deviceMemory, VkDeviceSize memoryOffset) {
 }
 
 void* Buffer::mapMemory(VkDeviceSize size, VkDeviceSize offset) {
-    void* data = nullptr;
-
-    vkMapMemory(static_cast<VkDevice>(*_device), static_cast<VkDeviceMemory>(*_deviceMemory), offset, size, 0, &data);
-
-    return data;
+    _gpuPtr = nullptr;
+    vkMapMemory(static_cast<VkDevice>(*_device), static_cast<VkDeviceMemory>(*_deviceMemory), offset, size, 0, &_gpuPtr);
+    return _gpuPtr;
 }
 
 void Buffer::unmapMemory() {
     vkUnmapMemory(static_cast<VkDevice>(*_device), static_cast<VkDeviceMemory>(*_deviceMemory));
+    _gpuPtr = nullptr;
 }
 
 void Buffer::updateData(void* data, uint32_t size, uint32_t memoryOffset) {
@@ -127,6 +126,13 @@ uint32_t Buffer::getSizeAligned(const Device* device, uint32_t size) {
     }
 
     return sizeAligned;
+}
+
+void* Buffer::getGpuPtr() {
+    if (!_gpuPtr) {
+        return mapMemory(VK_WHOLE_SIZE);
+    }
+    return _gpuPtr;
 }
 
 } // API

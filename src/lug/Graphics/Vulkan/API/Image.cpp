@@ -1,5 +1,6 @@
 #include <lug/Graphics/Vulkan/API/Image.hpp>
 #include <lug/Graphics/Vulkan/API/Device.hpp>
+#include <lug/Graphics/Vulkan/API/RTTI/Enum.hpp>
 #include <lug/System/Logger/Logger.hpp>
 
 namespace lug {
@@ -175,11 +176,17 @@ bool Image::isFormatSupported(const Device* device, VkFormat format, VkImageTili
     const PhysicalDeviceInfo* physicalDeviceInfo = device->getPhysicalDeviceInfo();
 
     if (physicalDeviceInfo->formatProperties.find(format) == physicalDeviceInfo->formatProperties.end()) {
+        LUG_LOG.warn("Image::isFormatSupported: the format does not exists in physicalDeviceInfo->formatProperties");
         return false;
     }
 
     const VkFormatProperties& formatProperties = physicalDeviceInfo->formatProperties.at(format);
 
+    LUG_LOG.info("FORMAT: {}", RTTI::toStr(format));
+    auto flagsStr = RTTI::VkFormatFeatureFlagsToStr(formatProperties.optimalTilingFeatures);
+    for (auto& flag: flagsStr) {
+        LUG_LOG.info("FLAGS: {}", flag);
+    }
     if (tiling == VK_IMAGE_TILING_LINEAR && (formatProperties.linearTilingFeatures & features) == features) {
         return true;
     }
