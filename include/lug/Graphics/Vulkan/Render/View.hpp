@@ -41,6 +41,7 @@ public:
 
     Technique::Technique* getRenderTechnique();
     const API::Semaphore& getDrawCompleteSemaphore(uint32_t currentImageIndex) const;
+    const API::Semaphore& getGuiCompleteSemaphore() const;
 
     VkSurfaceFormatKHR getFormat() const;
 

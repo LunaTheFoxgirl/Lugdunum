@@ -1,5 +1,6 @@
 // #include <chrono>
-// #include <algorithm>
+#define NOMINMAX
+ #include <algorithm>
 // #include <lug/Config.hpp>
 // #include <lug/Graphics/Light/Directional.hpp>
 // #include <lug/Graphics/Light/Point.hpp>
@@ -36,12 +37,10 @@ Gui::Gui(Renderer &renderer, Render::Window &window) : _renderer(renderer), _win
 Gui::~Gui() {
 }
 
-bool Gui::beginFrame()
-{
+bool Gui::beginFrame() {
     ImGuiIO& io = ImGui::GetIO();
 
-    // TODO(Nokitoo): use window size
-    io.DisplaySize = ImVec2(800.0f, 600.0f);
+    io.DisplaySize = ImVec2(_window.getWidth(), _window.getHeight());
 
     ImGui::NewFrame();
 
@@ -56,15 +55,103 @@ bool Gui::beginFrame()
 //     return true;
 // }
 
-bool Gui::endFrame()
-{
-    return false;
+bool Gui::endFrame(API::Semaphore& allDrawsFinishedSemaphore, uint32_t currentImageIndex) {
+	LUG_LOG.info("currentImageIndex {}", currentImageIndex);
+    API::Queue* graphicsQueue = _renderer.getQueue(VK_QUEUE_GRAPHICS_BIT, true);
+
+    _commandBuffers[currentImageIndex].reset();
+    _commandBuffers[currentImageIndex].begin();
+
+
+  //    vkCmdBindDescriptorSets(static_cast<VkCommandBuffer>(_commandBuffers[currentImageIndex], VK_PIPELINE_BIND_POINT_GRAPHICS, static_cast<VkPipelineLayout>(*_pipelineLayout), 0, 1, &_descriptorSet, 0, nullptr);
+  //  vkCmdBindPipeline(static_cast<VkCommandBuffer>(_commandBuffers[currentImageIndex], VK_PIPELINE_BIND_POINT_GRAPHICS, static_cast<VkPipeline>(_pipeline));
+	_descriptorSet[0].bind(_pipeline.getLayout(), &_commandBuffers[currentImageIndex], 0, 0, nullptr);
+	_pipeline.bind(&_commandBuffers[currentImageIndex]);
+
+
+    VkDeviceSize offsets[1] = { 0 };
+//	VkBuffer vertexBuffer = static_cast<VkBuffer>(*vkMesh->getVertexBuffer());
+	vkCmdBindVertexBuffers(static_cast<VkCommandBuffer>(_commandBuffers[currentImageIndex]), 0, 1, static_cast<VkBuffer*>((_vertexBuffer)->getGpuPtr()), offsets);
+//	vkCmdBindVertexBuffers(static_cast<VkCommandBuffer>(cmdBuffer), 0, 1, &vertexBuffer, &vertexBufferOffset);
+
+	// VK_INDEX_TYPE_UINT16 ?
+    vkCmdBindIndexBuffer(static_cast<VkCommandBuffer>(_commandBuffers[currentImageIndex]), static_cast<VkBuffer>(*_indexBuffer), 0, VK_INDEX_TYPE_UINT16);
+
+	//	vkCmdBindIndexBuffer(static_cast<VkCommandBuffer>(cmdBuffer), static_cast<VkBuffer>(*model->getIndexBuffer()), indexBufferOffset, VK_INDEX_TYPE_UINT32);
+//	vkCmdBindVertexBuffers
+
+    ImGuiIO& io = ImGui::GetIO();
+    {
+        VkViewport vkViewport{
+            vkViewport.x = 0,
+            vkViewport.y = 0,
+            vkViewport.width = io.DisplaySize.x,
+            vkViewport.height = io.DisplaySize.y,
+            vkViewport.minDepth = 0.0f,
+            vkViewport.maxDepth = 1.0f,
+        };
+        vkCmdSetViewport(static_cast<VkCommandBuffer>(_commandBuffers[currentImageIndex]), 0, 1, &vkViewport);
+    }
+    
+    // UI scale and translate via push constants
+	pushConstBlock.scale = lug::Math::Vec2f{ 2.0f / io.DisplaySize.x, 2.0f / io.DisplaySize.y };
+
+	pushConstBlock.translate = lug::Math::Vec2f{ -1.0f, -1.0f};
+
+    vkCmdPushConstants(static_cast<VkCommandBuffer>(_commandBuffers[currentImageIndex]), static_cast<VkPipelineLayout>(*_pipelineLayout), VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(PushConstBlock), &pushConstBlock);
+
+
+    // Render commands
+
+    ImDrawData* imDrawData = ImGui::GetDrawData();
+
+    vertexCount = 0;
+    indexCount = 0;
+
+    for (int32_t i = 0; i < imDrawData->CmdListsCount; i++) {        
+        const ImDrawList* cmd_list = imDrawData->CmdLists[i];
+        for (int32_t j = 0; j < cmd_list->CmdBuffer.Size; j++) {
+            const ImDrawCmd* pcmd = &cmd_list->CmdBuffer[j];
+            VkRect2D scissorRect;
+            scissorRect.offset.x = std::max(static_cast<int32_t>(pcmd->ClipRect.x), 0);
+            scissorRect.offset.y = std::max(static_cast<int32_t>(pcmd->ClipRect.y), 0);
+            scissorRect.extent.width = (uint32_t)(pcmd->ClipRect.z - pcmd->ClipRect.x);
+            scissorRect.extent.height = (uint32_t)(pcmd->ClipRect.w - pcmd->ClipRect.y);
+            vkCmdSetScissor(static_cast<VkCommandBuffer>(_commandBuffers[currentImageIndex]), 0, 1, &scissorRect);
+            vkCmdDrawIndexed(static_cast<VkCommandBuffer>(_commandBuffers[currentImageIndex]), pcmd->ElemCount, 1, indexCount, vertexCount, 0);
+			indexCount += pcmd->ElemCount;
+        }
+		vertexCount += cmd_list->VtxBuffer.Size;
+    }
+
+    _commandBuffers[currentImageIndex].end();
+	if (graphicsQueue->submit(_commandBuffers[currentImageIndex], {static_cast<VkSemaphore>(allDrawsFinishedSemaphore)}, { static_cast<VkSemaphore>(_guiSemaphore) }, { VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT }) == false) {
+        LUG_LOG.error("GUI: Can't submit commandBuffer");
+        return false;
+    }
+
+    return true;
 }
 
 // void Gui::destroy() {
 // }
 
 bool Gui::init(const std::vector<std::unique_ptr<API::ImageView>>& imageViews) {
+    // Color scheme
+    ImGuiStyle& style = ImGui::GetStyle();
+    style.Colors[ImGuiCol_TitleBg] = ImVec4(1.0f, 0.0f, 0.0f, 0.6f);
+    style.Colors[ImGuiCol_TitleBgActive] = ImVec4(1.0f, 0.0f, 0.0f, 0.8f);
+    style.Colors[ImGuiCol_MenuBarBg] = ImVec4(1.0f, 0.0f, 0.0f, 0.4f);
+    style.Colors[ImGuiCol_Header] = ImVec4(1.0f, 0.0f, 0.0f, 0.4f);
+    style.Colors[ImGuiCol_CheckMark] = ImVec4(0.0f, 1.0f, 0.0f, 1.0f);
+    // Dimensions
+    ImGuiIO& io = ImGui::GetIO();
+    io.DisplaySize = ImVec2(_window.getWidth(), _window.getHeight());
+    io.DisplayFramebufferScale = ImVec2(1.0f, 1.0f);
+
+    API::Queue* graphicsQueue = _renderer.getQueue(VK_QUEUE_GRAPHICS_BIT, true);
+    _commandBuffers = graphicsQueue->getCommandPool().createCommandBuffers(VK_COMMAND_BUFFER_LEVEL_PRIMARY, 3);
+
     return createFontsTexture() && initFramebuffers(imageViews);
 }
 
@@ -282,7 +369,8 @@ bool Gui::createFontsTexture() {
 
 
         // create descriptor set
-        _descriptorSet = static_cast<VkDescriptorSet>(_descriptorPool.createDescriptorSets({static_cast<VkDescriptorSetLayout>(*descriptorSetLayouts[0])})[0]);
+		_descriptorSet = _descriptorPool.createDescriptorSets({ static_cast<VkDescriptorSetLayout>(*descriptorSetLayouts[0]) });
+//        _descriptorSet = static_cast<VkDescriptorSet>(_descriptorPool.createDescriptorSets({static_cast<VkDescriptorSetLayout>(*descriptorSetLayouts[0])})[0]);
 
         // write descriptor set
         VkDescriptorImageInfo descriptorImageInfo;
@@ -293,7 +381,7 @@ bool Gui::createFontsTexture() {
         VkWriteDescriptorSet write{
             write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
             write.pNext = nullptr,
-            write.dstSet = _descriptorSet,
+            write.dstSet = static_cast<VkDescriptorSet>(_descriptorSet[0]),
             write.dstBinding = 0, // maybe modify that when shader is coded
             write.dstArrayElement = 0,
             write.descriptorCount = 1,
@@ -310,13 +398,18 @@ bool Gui::createFontsTexture() {
 
 
     VkPushConstantRange pushConstants[] = {
-        // Model transformation
-        {
+    //     // Model transformation
+    //     {
+    //         pushConstants[0].stageFlags = VK_SHADER_STAGE_VERTEX_BIT,
+    //         pushConstants[0].offset = 0,
+    //         pushConstants[0].size = sizeof(Math::Mat4x4f)
+    //     }
+
             pushConstants[0].stageFlags = VK_SHADER_STAGE_VERTEX_BIT,
             pushConstants[0].offset = 0,
-            pushConstants[0].size = sizeof(Math::Mat4x4f)
-        }
+            pushConstants[0].size = sizeof(PushConstBlock)
     };
+
     VkDescriptorSetLayout set_layout[1] = { static_cast<VkDescriptorSetLayout>(*descriptorSetLayouts[0]) };
     VkPipelineLayoutCreateInfo createInfo{
         createInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
@@ -338,7 +431,7 @@ bool Gui::createFontsTexture() {
         }
     }
 
-    std::unique_ptr<Vulkan::API::PipelineLayout> pipelineLayout = std::make_unique<Vulkan::API::PipelineLayout>(descriptorSetLayouts, vkPipelineLayout, device);
+    _pipelineLayout = std::make_unique<Vulkan::API::PipelineLayout>(descriptorSetLayouts, vkPipelineLayout, device);
 
     VkVertexInputAttributeDescription vertexInputAttributesDesc[3] = {
         {
@@ -629,7 +722,26 @@ bool Gui::createFontsTexture() {
         }
     }
 
-    _pipeline = Vulkan::API::Pipeline(pipeline, device, std::move(pipelineLayout), std::move(renderPass));
+    _pipeline = Vulkan::API::Pipeline(pipeline, device, std::move(_pipelineLayout), std::move(renderPass));
+
+    // semaphore for GUI
+    {
+        VkSemaphore semaphore;
+        VkSemaphoreCreateInfo semaphoreCreateInfo{
+			semaphoreCreateInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
+			semaphoreCreateInfo.pNext = nullptr,
+			semaphoreCreateInfo.flags = 0
+        };
+        VkResult result = vkCreateSemaphore(static_cast<VkDevice>(*device), &semaphoreCreateInfo, nullptr, &semaphore);
+        if (result != VK_SUCCESS) {
+            LUG_LOG.error("RendererVulkan: Can't create swapchain semaphore: {}", result);
+            return false;
+        }
+
+        _guiSemaphore = API::Semaphore(semaphore, &_renderer.getDevice());
+
+    }
+
 
     return true;
 }
@@ -692,13 +804,19 @@ void    Gui::updateBuffers() {
                 return;
 
             auto& requirements = _vertexBuffer->getRequirements();
+
+            realSize = requirements.size;
+            if (realSize % requirements.alignment) {
+                realSize += requirements.alignment - realSize % requirements.alignment;
+            }
+
             uint32_t memoryTypeIndex = API::DeviceMemory::findMemoryType(device, requirements, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
-            _vertexDeviceMemory = API::DeviceMemory::allocate(device, requirements.size, memoryTypeIndex);
+            _vertexDeviceMemory = API::DeviceMemory::allocate(device, realSize * requirements.size, memoryTypeIndex);
             if (!_vertexDeviceMemory) {
                 return;
             }
 
-            _vertexBuffer->bindMemory(_vertexDeviceMemory.get());
+            _vertexBuffer->bindMemory(_vertexDeviceMemory.get(), realSize );
         }
 
         vertexCount = imDrawData->TotalVtxCount;
@@ -725,8 +843,10 @@ void    Gui::updateBuffers() {
     }
 
     // Upload data
-    ImDrawVert* vtxDst = (ImDrawVert*)_vertexBuffer->getGpuPtr();
+        
     ImDrawIdx* idxDst = (ImDrawIdx*)_indexBuffer->getGpuPtr();
+	ImDrawVert* vtxDst = (ImDrawVert*)_vertexBuffer->getGpuPtr();
+
 
     for (int n = 0; n < imDrawData->CmdListsCount; n++) {
         const ImDrawList* cmd_list = imDrawData->CmdLists[n];

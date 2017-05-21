@@ -102,8 +102,6 @@ bool Window::beginFrame() {
                     }
         );
 
-//    _imGuiInstance.beginFrame();
-
     return _presentQueue->submit(
         cmdBuffer,
         imageReadyVkSemaphores,
@@ -124,7 +122,6 @@ bool Window::endFrame() {
 
         // Render views with no camera don't signal the semaphore as they don't draw
         if (renderView_->getCamera()) {
-            // wait aur la nouvelle semaphore GUI
             waitSemaphores[i++] = static_cast<VkSemaphore>(renderView_->getDrawCompleteSemaphore(_currentImageIndex));
         }
     }
@@ -134,15 +131,15 @@ bool Window::endFrame() {
     if (waitSemaphores.size() != i) {
         waitSemaphores.resize(i);
     }
-    std::vector<VkPipelineStageFlags> waitDstStageMasks(waitSemaphores.size(), VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT);
 
-    // _imGuiInstance.endFrame();
+   std::vector<VkPipelineStageFlags> waitDstStageMasks(waitSemaphores.size(), VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT);
 
     return _presentQueue->submit(
         cmdBuffer,
-        {static_cast<VkSemaphore>(frameData.allDrawsFinishedSemaphore)},
-        waitSemaphores, waitDstStageMasks
-    ) && _swapchain.present(_presentQueue, _currentImageIndex, static_cast<VkSemaphore>(frameData.allDrawsFinishedSemaphore));
+		{ static_cast<VkSemaphore>(_imGuiInstance->getGuiSemaphore()) }/*frameData.allDrawsFinishedSemaphore)*/,
+        waitSemaphores/*_imGuiInstance->getGuiCompleteSemaphore()*/, waitDstStageMasks/*{VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT}*/)
+    && _imGuiInstance->endFrame(frameData.allDrawsFinishedSemaphore/*waitSemaphores*/, _currentImageIndex)
+    && _swapchain.present(_presentQueue, _currentImageIndex, static_cast<VkSemaphore>(frameData.allDrawsFinishedSemaphore));
 }
 
 lug::Graphics::Render::View* Window::createView(lug::Graphics::Render::View::InitInfo& initInfo) {
@@ -719,14 +716,17 @@ bool Window::initRender() {
     if (!(initDescriptorPool() && initSurface() && initSwapchainCapabilities() && initPresentQueue() && initSwapchain() && initFramesData())) {
         return false;
     }
-
     for (auto& renderViewInitInfo : _initInfo.renderViewsInitInfo) {
         if (!createView(renderViewInitInfo)) {
             return false;
         }
     }
 
-    if (!initGui())  return false;
+    if (!initGui())
+    {
+        LUG_LOG.error("Window::initGui failed");
+        return false;
+    }
 
     return true;
 }

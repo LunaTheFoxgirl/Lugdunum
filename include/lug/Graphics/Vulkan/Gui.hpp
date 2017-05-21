@@ -19,19 +19,19 @@
 #include <lug/Graphics/Vulkan/API/Framebuffer.hpp>
 #include <lug/Graphics/Vulkan/API/Pipeline.hpp>
 #include <lug/Graphics/Vulkan/Renderer.hpp>
-
+#include <lug/Graphics/Vulkan/API/CommandBuffer.hpp>
 
 namespace lug {
 namespace Graphics {
 namespace Vulkan {
 
 class LUG_GRAPHICS_API Gui {
-// private:
-//     // UI params are set via push constants
-//     struct PushConstBlock {
-//         lug::Math::Vec2<float> scale;
-//         lug::Math::Vec2<float> translate;
-//     } pushConstBlock;
+public:
+    // UI params are set via push constants
+    struct PushConstBlock {
+        lug::Math::Vec2<float> scale;
+        lug::Math::Vec2<float> translate;
+    } pushConstBlock;
 public:
     Gui() = delete;
 
@@ -47,9 +47,10 @@ public:
 
     bool beginFrame();
     // bool render();
-    bool endFrame();
+    bool endFrame(API::Semaphore& allDrawsFinishedSemaphore, uint32_t currentImageIndex);
     // void destroy();
 
+    const Vulkan::API::Semaphore& Gui::getGuiSemaphore() const;
     bool init(const std::vector<std::unique_ptr<API::ImageView>>& imageViews);
     bool createFontsTexture();
     bool initFramebuffers(const std::vector<std::unique_ptr<API::ImageView>>& imageViews);
@@ -67,7 +68,12 @@ private:
     std::unique_ptr<Vulkan::API::DescriptorSetLayout> _descriptorSetLayout;
     VkSampler _sampler;
     Vulkan::API::DescriptorPool _descriptorPool;
-    VkDescriptorSet _descriptorSet;
+
+    std::vector<Vulkan::API::DescriptorSet> _descriptorSet;
+//    VkDescriptorSet _descriptorSet;
+
+    std::unique_ptr<Vulkan::API::PipelineLayout> _pipelineLayout;
+
     Vulkan::API::Pipeline _pipeline;
     Vulkan::API::Framebuffer _framebuffer;
 
@@ -79,8 +85,9 @@ private:
     int vertexCount = 0;
     int indexCount = 0;
 
-
-
+    std::vector<Vulkan::API::CommandBuffer> _commandBuffers;
+    Vulkan::API::Semaphore _guiSemaphore;
+    size_t realSize;
 
     // API::Queue* _graphicsQueue{nullptr};
     // API::Queue* _Queue{nullptr};
@@ -97,6 +104,8 @@ private:
     // VkImage fontImage = VK_NULL_HANDLE;
     // VkImageView fontView = VK_NULL_HANDLE;
 };
+
+#include "Gui.inl"
 
 } // Vulkan
 } // Graphics
