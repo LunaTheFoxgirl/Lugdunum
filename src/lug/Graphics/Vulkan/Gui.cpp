@@ -46,42 +46,23 @@ bool Gui::beginFrame() {
 
     ImGui::Text("Test");
 
+    ImGui::SetNextWindowPos(ImVec2(100, 100), ImGuiSetCond_FirstUseEver);
+    ImGui::ShowTestWindow();
+
     ImGui::Render();
     updateBuffers();
     return false;
 }
 
-// bool Gui::render() {
-//     return true;
-// }
-
-bool Gui::endFrame(API::Semaphore& allDrawsFinishedSemaphore, uint32_t currentImageIndex) {
+bool Gui::endFrame(const std::vector<VkSemaphore>& waitSemaphores, uint32_t currentImageIndex) {
 	LUG_LOG.info("currentImageIndex {}", currentImageIndex);
     API::Queue* graphicsQueue = _renderer.getQueue(VK_QUEUE_GRAPHICS_BIT, true);
 
     _commandBuffers[currentImageIndex].reset();
     _commandBuffers[currentImageIndex].begin();
 
-
-  //    vkCmdBindDescriptorSets(static_cast<VkCommandBuffer>(_commandBuffers[currentImageIndex], VK_PIPELINE_BIND_POINT_GRAPHICS, static_cast<VkPipelineLayout>(*_pipelineLayout), 0, 1, &_descriptorSet, 0, nullptr);
-  //  vkCmdBindPipeline(static_cast<VkCommandBuffer>(_commandBuffers[currentImageIndex], VK_PIPELINE_BIND_POINT_GRAPHICS, static_cast<VkPipeline>(_pipeline));
-	_descriptorSet[0].bind(_pipeline.getLayout(), &_commandBuffers[currentImageIndex], 0, 0, nullptr);
-	_pipeline.bind(&_commandBuffers[currentImageIndex]);
-
-
-    VkDeviceSize offsets[1] = { 0 };
-//	VkBuffer vertexBuffer = static_cast<VkBuffer>(*vkMesh->getVertexBuffer());
-	vkCmdBindVertexBuffers(static_cast<VkCommandBuffer>(_commandBuffers[currentImageIndex]), 0, 1, static_cast<VkBuffer*>((_vertexBuffer)->getGpuPtr()), offsets);
-//	vkCmdBindVertexBuffers(static_cast<VkCommandBuffer>(cmdBuffer), 0, 1, &vertexBuffer, &vertexBufferOffset);
-
-	// VK_INDEX_TYPE_UINT16 ?
-    vkCmdBindIndexBuffer(static_cast<VkCommandBuffer>(_commandBuffers[currentImageIndex]), static_cast<VkBuffer>(*_indexBuffer), 0, VK_INDEX_TYPE_UINT16);
-
-	//	vkCmdBindIndexBuffer(static_cast<VkCommandBuffer>(cmdBuffer), static_cast<VkBuffer>(*model->getIndexBuffer()), indexBufferOffset, VK_INDEX_TYPE_UINT32);
-//	vkCmdBindVertexBuffers
-
     ImGuiIO& io = ImGui::GetIO();
-    {
+    
         VkViewport vkViewport{
             vkViewport.x = 0,
             vkViewport.y = 0,
@@ -91,25 +72,57 @@ bool Gui::endFrame(API::Semaphore& allDrawsFinishedSemaphore, uint32_t currentIm
             vkViewport.maxDepth = 1.0f,
         };
         vkCmdSetViewport(static_cast<VkCommandBuffer>(_commandBuffers[currentImageIndex]), 0, 1, &vkViewport);
-    }
     
+
+    API::RenderPass* renderPass = _pipeline.getRenderPass();
+
+    VkClearValue clearValues[1];
+
+    clearValues[0].color = { { 0.2f, 0.2f, 0.2f, 1.0f} };
+
+//    clearValues[1].depthStencil = { 1.0f, 0 };
+
+	VkRenderPassBeginInfo beginInfo{
+		beginInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
+		beginInfo.pNext = nullptr
+	};
+	beginInfo.renderPass = static_cast<VkRenderPass>(*renderPass),
+	beginInfo.framebuffer = static_cast<VkFramebuffer>(_framebuffers[currentImageIndex]),
+	beginInfo.renderArea.offset.x = 0;
+	beginInfo.renderArea.offset.y = 0;
+	beginInfo.renderArea.extent.width =  _window.getWidth();
+	beginInfo.renderArea.extent.height = _window.getHeight();
+	beginInfo.clearValueCount = 0;
+	beginInfo.pClearValues = nullptr;
+
+    vkCmdBeginRenderPass(static_cast<VkCommandBuffer>(_commandBuffers[currentImageIndex]), &beginInfo, VK_SUBPASS_CONTENTS_INLINE);
+
+	_descriptorSet[0].bind(_pipeline.getLayout(), &_commandBuffers[currentImageIndex], 0, 0, nullptr);
+	_pipeline.bind(&_commandBuffers[currentImageIndex]);
+
+
+    VkDeviceSize offsets[1] = { 0 };
+    VkBuffer vertexBuffer = static_cast<VkBuffer>(*_vertexBuffer);
+
+    vkCmdBindVertexBuffers(static_cast<VkCommandBuffer>(_commandBuffers[currentImageIndex]), 0, 1, &vertexBuffer, offsets);
+    vkCmdBindIndexBuffer(static_cast<VkCommandBuffer>(_commandBuffers[currentImageIndex]), static_cast<VkBuffer>(*_indexBuffer), 0, VK_INDEX_TYPE_UINT16);
+
     // UI scale and translate via push constants
 	pushConstBlock.scale = lug::Math::Vec2f{ 2.0f / io.DisplaySize.x, 2.0f / io.DisplaySize.y };
-
 	pushConstBlock.translate = lug::Math::Vec2f{ -1.0f, -1.0f};
-
-    vkCmdPushConstants(static_cast<VkCommandBuffer>(_commandBuffers[currentImageIndex]), static_cast<VkPipelineLayout>(*_pipelineLayout), VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(PushConstBlock), &pushConstBlock);
-
+    vkCmdPushConstants(static_cast<VkCommandBuffer>(_commandBuffers[currentImageIndex]), static_cast<VkPipelineLayout>(*(_pipeline.getLayout())), VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(PushConstBlock), &pushConstBlock);
 
     // Render commands
-
     ImDrawData* imDrawData = ImGui::GetDrawData();
+
+    LUG_LOG.info("imDrawData->CmdListsCount {}", imDrawData->CmdListsCount);
 
     vertexCount = 0;
     indexCount = 0;
 
     for (int32_t i = 0; i < imDrawData->CmdListsCount; i++) {        
         const ImDrawList* cmd_list = imDrawData->CmdLists[i];
+        LUG_LOG.info("cmd_list->CmdBuffer.Size {}", cmd_list->CmdBuffer.Size);
         for (int32_t j = 0; j < cmd_list->CmdBuffer.Size; j++) {
             const ImDrawCmd* pcmd = &cmd_list->CmdBuffer[j];
             VkRect2D scissorRect;
@@ -124,17 +137,17 @@ bool Gui::endFrame(API::Semaphore& allDrawsFinishedSemaphore, uint32_t currentIm
 		vertexCount += cmd_list->VtxBuffer.Size;
     }
 
+    renderPass->end(&_commandBuffers[currentImageIndex]);
     _commandBuffers[currentImageIndex].end();
-	if (graphicsQueue->submit(_commandBuffers[currentImageIndex], {static_cast<VkSemaphore>(allDrawsFinishedSemaphore)}, { static_cast<VkSemaphore>(_guiSemaphore) }, { VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT }) == false) {
+
+    std::vector<VkPipelineStageFlags> waitDstStageMasks(waitSemaphores.size(), VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT);
+	if (graphicsQueue->submit(_commandBuffers[currentImageIndex], {static_cast<VkSemaphore>(_guiSemaphores[currentImageIndex])}, waitSemaphores, waitDstStageMasks) == false) {
         LUG_LOG.error("GUI: Can't submit commandBuffer");
         return false;
     }
 
     return true;
 }
-
-// void Gui::destroy() {
-// }
 
 bool Gui::init(const std::vector<std::unique_ptr<API::ImageView>>& imageViews) {
     // Color scheme
@@ -398,13 +411,6 @@ bool Gui::createFontsTexture() {
 
 
     VkPushConstantRange pushConstants[] = {
-    //     // Model transformation
-    //     {
-    //         pushConstants[0].stageFlags = VK_SHADER_STAGE_VERTEX_BIT,
-    //         pushConstants[0].offset = 0,
-    //         pushConstants[0].size = sizeof(Math::Mat4x4f)
-    //     }
-
             pushConstants[0].stageFlags = VK_SHADER_STAGE_VERTEX_BIT,
             pushConstants[0].offset = 0,
             pushConstants[0].size = sizeof(PushConstBlock)
@@ -639,7 +645,7 @@ bool Gui::createFontsTexture() {
                 attachments[0].flags = 0,
                 attachments[0].format = colorFormat,
                 attachments[0].samples = VK_SAMPLE_COUNT_1_BIT,
-                attachments[0].loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
+                attachments[0].loadOp = VK_ATTACHMENT_LOAD_OP_LOAD,
                 attachments[0].storeOp = VK_ATTACHMENT_STORE_OP_STORE,
                 attachments[0].stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
                 attachments[0].stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
@@ -724,22 +730,24 @@ bool Gui::createFontsTexture() {
 
     _pipeline = Vulkan::API::Pipeline(pipeline, device, std::move(_pipelineLayout), std::move(renderPass));
 
-    // semaphore for GUI
+    _guiSemaphores.resize(3);
+    for (int i = 0; i < 3; i++)
     {
-        VkSemaphore semaphore;
-        VkSemaphoreCreateInfo semaphoreCreateInfo{
-			semaphoreCreateInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
-			semaphoreCreateInfo.pNext = nullptr,
-			semaphoreCreateInfo.flags = 0
-        };
-        VkResult result = vkCreateSemaphore(static_cast<VkDevice>(*device), &semaphoreCreateInfo, nullptr, &semaphore);
-        if (result != VK_SUCCESS) {
-            LUG_LOG.error("RendererVulkan: Can't create swapchain semaphore: {}", result);
-            return false;
+        {
+            VkSemaphore semaphore;
+            VkSemaphoreCreateInfo semaphoreCreateInfo{
+                semaphoreCreateInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
+                semaphoreCreateInfo.pNext = nullptr,
+                semaphoreCreateInfo.flags = 0
+            };
+            VkResult result = vkCreateSemaphore(static_cast<VkDevice>(*device), &semaphoreCreateInfo, nullptr, &semaphore);
+            if (result != VK_SUCCESS) {
+                LUG_LOG.error("RendererVulkan: Can't create swapchain semaphore: {}", result);
+                return false;
+            }
+
+            _guiSemaphores[i] = API::Semaphore(semaphore, &_renderer.getDevice());        
         }
-
-        _guiSemaphore = API::Semaphore(semaphore, &_renderer.getDevice());
-
     }
 
 
@@ -753,6 +761,7 @@ bool Gui::initFramebuffers(const std::vector<std::unique_ptr<API::ImageView>>& i
 
     VkResult result;
 
+    _framebuffers.resize(imageViews.size());
     for (size_t i = 0; i < imageViews.size(); i++) {
         VkImageView attachments[1]{
             static_cast<VkImageView>(*imageViews[i])
@@ -774,8 +783,8 @@ bool Gui::initFramebuffers(const std::vector<std::unique_ptr<API::ImageView>>& i
             return false;
         }
         // TODO: Remove the extent initializer list when struct Extent is externalised
-        _framebuffer.destroy();
-        _framebuffer = API::Framebuffer(fb, device, {imageViews[i]->getExtent().width, imageViews[i]->getExtent().height});
+        //_framebuffer.destroy();
+        _framebuffers[i] = API::Framebuffer(fb, device, {imageViews[i]->getExtent().width, imageViews[i]->getExtent().height});
     }
 
     return true;
@@ -805,18 +814,13 @@ void    Gui::updateBuffers() {
 
             auto& requirements = _vertexBuffer->getRequirements();
 
-            realSize = requirements.size;
-            if (realSize % requirements.alignment) {
-                realSize += requirements.alignment - realSize % requirements.alignment;
-            }
-
             uint32_t memoryTypeIndex = API::DeviceMemory::findMemoryType(device, requirements, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
-            _vertexDeviceMemory = API::DeviceMemory::allocate(device, realSize * requirements.size, memoryTypeIndex);
+            _vertexDeviceMemory = API::DeviceMemory::allocate(device, requirements.size, memoryTypeIndex);
             if (!_vertexDeviceMemory) {
                 return;
             }
 
-            _vertexBuffer->bindMemory(_vertexDeviceMemory.get(), realSize );
+            _vertexBuffer->bindMemory(_vertexDeviceMemory.get());
         }
 
         vertexCount = imDrawData->TotalVtxCount;

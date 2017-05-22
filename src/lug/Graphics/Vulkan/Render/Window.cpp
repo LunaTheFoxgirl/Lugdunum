@@ -62,7 +62,8 @@ bool Window::beginFrame() {
             if (!initSwapchainCapabilities() || !initSwapchain() || !buildCommandBuffers()) {
                 return false;
             }
-
+            LUG_LOG.info("fsdfdsfsffsdfdsfhsdfkjhdskjhfjksdhfkjhshdskfjhskjsd ");
+            _imGuiInstance->initFramebuffers(_swapchain.getImagesViews());
             for (auto& renderView: _renderViews) {
                 View* renderView_ = static_cast<View*>(renderView.get());
 
@@ -132,13 +133,14 @@ bool Window::endFrame() {
         waitSemaphores.resize(i);
     }
 
-   std::vector<VkPipelineStageFlags> waitDstStageMasks(waitSemaphores.size(), VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT);
+//   std::vector<VkPipelineStageFlags> waitDstStageMasks(waitSemaphores.size(), VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT);
 
-    return _presentQueue->submit(
+    return _imGuiInstance->endFrame(waitSemaphores, _currentImageIndex)
+    && _presentQueue->submit(
         cmdBuffer,
-		{ static_cast<VkSemaphore>(_imGuiInstance->getGuiSemaphore()) }/*frameData.allDrawsFinishedSemaphore)*/,
-        waitSemaphores/*_imGuiInstance->getGuiCompleteSemaphore()*/, waitDstStageMasks/*{VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT}*/)
-    && _imGuiInstance->endFrame(frameData.allDrawsFinishedSemaphore/*waitSemaphores*/, _currentImageIndex)
+        { static_cast<VkSemaphore>(frameData.allDrawsFinishedSemaphore)},
+		{static_cast<VkSemaphore>(_imGuiInstance->getGuiSemaphore(_currentImageIndex))},
+        {VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT})
     && _swapchain.present(_presentQueue, _currentImageIndex, static_cast<VkSemaphore>(frameData.allDrawsFinishedSemaphore));
 }
 
@@ -163,15 +165,6 @@ bool Window::render() {
             return false;
         }
     }
-
-//    _imGuiInstance.render();
-    // texture to framedata
-    // queue transfert
-    // tu transfert la data dans la texture
-    // semaphore pour notifier le transfert // pas besoin avec buffer.movedata
-    // command buffer to dray la texture sur l'image final qui wait sur la semaphore --> peut etre stocker dans framedata vu que ca change pas
-    // notifie un semaphore pour autoriser le draw
-    // tu render sur l'image de la swapchain
     return true;
 }
 
