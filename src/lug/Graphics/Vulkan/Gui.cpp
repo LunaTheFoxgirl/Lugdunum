@@ -49,12 +49,13 @@ bool Gui::beginFrame() {
     ImGui::SetNextWindowPos(ImVec2(100, 100), ImGuiSetCond_FirstUseEver);
     ImGui::ShowTestWindow();
 
-    ImGui::Render();
-    updateBuffers();
     return false;
 }
 
 bool Gui::endFrame(const std::vector<VkSemaphore>& waitSemaphores, uint32_t currentImageIndex) {
+    ImGui::Render();
+    updateBuffers(currentImageIndex);
+
 	LUG_LOG.info("currentImageIndex {}", currentImageIndex);
     API::Queue* graphicsQueue = _renderer.getQueue(VK_QUEUE_GRAPHICS_BIT, true);
 
@@ -62,7 +63,7 @@ bool Gui::endFrame(const std::vector<VkSemaphore>& waitSemaphores, uint32_t curr
     _commandBuffers[currentImageIndex].begin();
 
     ImGuiIO& io = ImGui::GetIO();
-    
+
         VkViewport vkViewport{
             vkViewport.x = 0,
             vkViewport.y = 0,
@@ -72,7 +73,7 @@ bool Gui::endFrame(const std::vector<VkSemaphore>& waitSemaphores, uint32_t curr
             vkViewport.maxDepth = 1.0f,
         };
         vkCmdSetViewport(static_cast<VkCommandBuffer>(_commandBuffers[currentImageIndex]), 0, 1, &vkViewport);
-    
+
 
     API::RenderPass* renderPass = _pipeline.getRenderPass();
 
@@ -84,16 +85,16 @@ bool Gui::endFrame(const std::vector<VkSemaphore>& waitSemaphores, uint32_t curr
 
 	VkRenderPassBeginInfo beginInfo{
 		beginInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
-		beginInfo.pNext = nullptr
+		beginInfo.pNext = nullptr,
+        beginInfo.renderPass = static_cast<VkRenderPass>(*renderPass),
+        beginInfo.framebuffer = static_cast<VkFramebuffer>(_framebuffers[currentImageIndex]),
+        {},
+        beginInfo.clearValueCount = 0,
+        beginInfo.pClearValues = nullptr
 	};
-	beginInfo.renderPass = static_cast<VkRenderPass>(*renderPass),
-	beginInfo.framebuffer = static_cast<VkFramebuffer>(_framebuffers[currentImageIndex]),
-	beginInfo.renderArea.offset.x = 0;
-	beginInfo.renderArea.offset.y = 0;
-	beginInfo.renderArea.extent.width =  _window.getWidth();
-	beginInfo.renderArea.extent.height = _window.getHeight();
-	beginInfo.clearValueCount = 0;
-	beginInfo.pClearValues = nullptr;
+
+    beginInfo.renderArea.offset = {0, 0};
+    beginInfo.renderArea.extent = {_window.getWidth(), _window.getHeight()};
 
     vkCmdBeginRenderPass(static_cast<VkCommandBuffer>(_commandBuffers[currentImageIndex]), &beginInfo, VK_SUBPASS_CONTENTS_INLINE);
 
@@ -102,10 +103,10 @@ bool Gui::endFrame(const std::vector<VkSemaphore>& waitSemaphores, uint32_t curr
 
 
     VkDeviceSize offsets[1] = { 0 };
-    VkBuffer vertexBuffer = static_cast<VkBuffer>(*_vertexBuffer);
+    VkBuffer vertexBuffer = static_cast<VkBuffer>(*_vertexBuffers[currentImageIndex]);
 
     vkCmdBindVertexBuffers(static_cast<VkCommandBuffer>(_commandBuffers[currentImageIndex]), 0, 1, &vertexBuffer, offsets);
-    vkCmdBindIndexBuffer(static_cast<VkCommandBuffer>(_commandBuffers[currentImageIndex]), static_cast<VkBuffer>(*_indexBuffer), 0, VK_INDEX_TYPE_UINT16);
+    vkCmdBindIndexBuffer(static_cast<VkCommandBuffer>(_commandBuffers[currentImageIndex]), static_cast<VkBuffer>(*_indexBuffers[currentImageIndex]), 0, VK_INDEX_TYPE_UINT16);
 
     // UI scale and translate via push constants
 	pushConstBlock.scale = lug::Math::Vec2f{ 2.0f / io.DisplaySize.x, 2.0f / io.DisplaySize.y };
@@ -120,7 +121,7 @@ bool Gui::endFrame(const std::vector<VkSemaphore>& waitSemaphores, uint32_t curr
     vertexCount = 0;
     indexCount = 0;
 
-    for (int32_t i = 0; i < imDrawData->CmdListsCount; i++) {        
+    for (int32_t i = 0; i < imDrawData->CmdListsCount; i++) {
         const ImDrawList* cmd_list = imDrawData->CmdLists[i];
         LUG_LOG.info("cmd_list->CmdBuffer.Size {}", cmd_list->CmdBuffer.Size);
         for (int32_t j = 0; j < cmd_list->CmdBuffer.Size; j++) {
@@ -164,6 +165,11 @@ bool Gui::init(const std::vector<std::unique_ptr<API::ImageView>>& imageViews) {
 
     API::Queue* graphicsQueue = _renderer.getQueue(VK_QUEUE_GRAPHICS_BIT, true);
     _commandBuffers = graphicsQueue->getCommandPool().createCommandBuffers(VK_COMMAND_BUFFER_LEVEL_PRIMARY, 3);
+
+    _indexBuffers.resize(3);
+    _vertexBuffers.resize(3);
+    _vertexDeviceMemories.resize(3);
+    _indexDeviceMemories.resize(3);
 
     return createFontsTexture() && initFramebuffers(imageViews);
 }
@@ -410,10 +416,10 @@ bool Gui::createFontsTexture() {
     }
 
 
-    VkPushConstantRange pushConstants[] = {
-            pushConstants[0].stageFlags = VK_SHADER_STAGE_VERTEX_BIT,
-            pushConstants[0].offset = 0,
-            pushConstants[0].size = sizeof(PushConstBlock)
+    VkPushConstantRange pushConstant = {
+        pushConstant.stageFlags = VK_SHADER_STAGE_VERTEX_BIT,
+        pushConstant.offset = 0,
+        pushConstant.size = sizeof(PushConstBlock)
     };
 
     VkDescriptorSetLayout set_layout[1] = { static_cast<VkDescriptorSetLayout>(*descriptorSetLayouts[0]) };
@@ -424,7 +430,7 @@ bool Gui::createFontsTexture() {
         createInfo.setLayoutCount = 1,
         createInfo.pSetLayouts = set_layout,
         createInfo.pushConstantRangeCount = 1,
-        createInfo.pPushConstantRanges = pushConstants
+        createInfo.pPushConstantRanges = &pushConstant
     };
 
     VkPipelineLayout vkPipelineLayout = VK_NULL_HANDLE;
@@ -688,7 +694,7 @@ bool Gui::createFontsTexture() {
         VkResult result = vkCreateRenderPass(static_cast<VkDevice>(*device), &renderPassCreateInfo, nullptr, &vkRenderPass);
         if (result != VK_SUCCESS) {
             LUG_LOG.error("RendererVulkan: Can't create render pass: {}", result);
-            return nullptr;
+            return false;
         }
         renderPass = std::make_unique<Vulkan::API::RenderPass>(vkRenderPass, device);
     }
@@ -746,7 +752,7 @@ bool Gui::createFontsTexture() {
                 return false;
             }
 
-            _guiSemaphores[i] = API::Semaphore(semaphore, &_renderer.getDevice());        
+            _guiSemaphores[i] = API::Semaphore(semaphore, &_renderer.getDevice());
         }
     }
 
@@ -790,7 +796,7 @@ bool Gui::initFramebuffers(const std::vector<std::unique_ptr<API::ImageView>>& i
     return true;
 }
 
-void    Gui::updateBuffers() {
+void    Gui::updateBuffers(uint32_t currentImageIndex) {
     ImDrawData* imDrawData = ImGui::GetDrawData();
     if (!imDrawData) {
         return;
@@ -804,52 +810,52 @@ void    Gui::updateBuffers() {
     // Update buffers only if vertex or index count has been changed compared to current buffer size
 
     // Vertex buffer
-    if ((_vertexBuffer == nullptr) || (vertexCount != imDrawData->TotalVtxCount)) {
+    if ((_vertexBuffers[currentImageIndex] == nullptr) || (vertexCount != imDrawData->TotalVtxCount)) {
         {
             API::Queue* transfertQueue = _renderer.getQueue(VK_QUEUE_TRANSFER_BIT, false);
             std::vector<uint32_t> queueFamilyIndices = {(uint32_t)transfertQueue->getFamilyIdx()};
-            _vertexBuffer = API::Buffer::create(device, (uint32_t)queueFamilyIndices.size(), queueFamilyIndices.data(), (uint32_t)vertexBufferSize, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT);
-            if (!_vertexBuffer)
+            _vertexBuffers[currentImageIndex] = API::Buffer::create(device, (uint32_t)queueFamilyIndices.size(), queueFamilyIndices.data(), (uint32_t)vertexBufferSize, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT);
+            if (!_vertexBuffers[currentImageIndex])
                 return;
 
-            auto& requirements = _vertexBuffer->getRequirements();
+            auto& requirements = _vertexBuffers[currentImageIndex]->getRequirements();
 
             uint32_t memoryTypeIndex = API::DeviceMemory::findMemoryType(device, requirements, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
-            _vertexDeviceMemory = API::DeviceMemory::allocate(device, requirements.size, memoryTypeIndex);
-            if (!_vertexDeviceMemory) {
+            _vertexDeviceMemories[currentImageIndex] = API::DeviceMemory::allocate(device, requirements.size, memoryTypeIndex);
+            if (!_vertexDeviceMemories[currentImageIndex]) {
                 return;
             }
 
-            _vertexBuffer->bindMemory(_vertexDeviceMemory.get());
+            _vertexBuffers[currentImageIndex]->bindMemory(_vertexDeviceMemories[currentImageIndex].get());
         }
 
         vertexCount = imDrawData->TotalVtxCount;
     }
 
-    if ((_indexBuffer == nullptr) || (indexCount < imDrawData->TotalIdxCount)) {
+    if ((_indexBuffers[currentImageIndex] == nullptr) || (indexCount < imDrawData->TotalIdxCount)) {
         {
             API::Queue* transfertQueue = _renderer.getQueue(VK_QUEUE_TRANSFER_BIT, false);
             std::vector<uint32_t> queueFamilyIndices = {(uint32_t)transfertQueue->getFamilyIdx()};
-            _indexBuffer = API::Buffer::create(device, (uint32_t)queueFamilyIndices.size(), queueFamilyIndices.data(), (uint32_t)indexBufferSize, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT);
-            if (!_indexBuffer)
+            _indexBuffers[currentImageIndex] = API::Buffer::create(device, (uint32_t)queueFamilyIndices.size(), queueFamilyIndices.data(), (uint32_t)indexBufferSize, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT);
+            if (!_indexBuffers[currentImageIndex])
                 return;
 
-            auto& requirements = _indexBuffer->getRequirements();
+            auto& requirements = _indexBuffers[currentImageIndex]->getRequirements();
             uint32_t memoryTypeIndex = API::DeviceMemory::findMemoryType(device, requirements, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
-            _indexDeviceMemory = API::DeviceMemory::allocate(device, requirements.size, memoryTypeIndex);
-            if (!_indexDeviceMemory) {
+            _indexDeviceMemories[currentImageIndex] = API::DeviceMemory::allocate(device, requirements.size, memoryTypeIndex);
+            if (!_indexDeviceMemories[currentImageIndex]) {
                 return;
             }
 
-            _indexBuffer->bindMemory(_indexDeviceMemory.get());
+            _indexBuffers[currentImageIndex]->bindMemory(_indexDeviceMemories[currentImageIndex].get());
         }
         indexCount = imDrawData->TotalIdxCount;
     }
 
     // Upload data
-        
-    ImDrawIdx* idxDst = (ImDrawIdx*)_indexBuffer->getGpuPtr();
-	ImDrawVert* vtxDst = (ImDrawVert*)_vertexBuffer->getGpuPtr();
+
+    ImDrawIdx* idxDst = (ImDrawIdx*)_indexBuffers[currentImageIndex]->getGpuPtr();
+	ImDrawVert* vtxDst = (ImDrawVert*)_vertexBuffers[currentImageIndex]->getGpuPtr();
 
 
     for (int n = 0; n < imDrawData->CmdListsCount; n++) {

@@ -39,7 +39,7 @@ public:
     bool initFramebuffers(const std::vector<std::unique_ptr<API::ImageView>>& imageViews);
 
 private:
-    void updateBuffers();
+    void updateBuffers(uint32_t currentImageIndex);
 
 private:
     Renderer& _renderer;
@@ -55,17 +55,17 @@ private:
     std::unique_ptr<Vulkan::API::PipelineLayout> _pipelineLayout;
     Vulkan::API::Pipeline _pipeline;
     std::vector<Vulkan::API::Framebuffer> _framebuffers;
-    std::unique_ptr<Vulkan::API::Buffer> _indexBuffer{nullptr};
-    std::unique_ptr<Vulkan::API::Buffer> _vertexBuffer{nullptr};
-    std::unique_ptr<Vulkan::API::DeviceMemory> _vertexDeviceMemory{nullptr};
-    std::unique_ptr<Vulkan::API::DeviceMemory> _indexDeviceMemory{nullptr};
+
+    std::vector<std::unique_ptr<Vulkan::API::Buffer>> _indexBuffers;
+    std::vector<std::unique_ptr<Vulkan::API::Buffer>> _vertexBuffers;
+    std::vector<std::unique_ptr<Vulkan::API::DeviceMemory>> _vertexDeviceMemories;
+    std::vector<std::unique_ptr<Vulkan::API::DeviceMemory>> _indexDeviceMemories;
 
     int vertexCount = 0;
     int indexCount = 0;
 
     std::vector<Vulkan::API::CommandBuffer> _commandBuffers;
     std::vector<Vulkan::API::Semaphore> _guiSemaphores;
-    size_t realSize;
 };
 
 #include "Gui.inl"

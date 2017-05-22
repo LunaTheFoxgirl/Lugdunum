@@ -88,7 +88,7 @@ std::unique_ptr<RenderPass> RenderPass::create(const Device* device, VkFormat co
 
     if (depthFormat == VK_FORMAT_UNDEFINED) {
         LUG_LOG.error("RenderPass::create: Can't find any supported Format for depth buffer");
-        return false;
+        return nullptr;
     }
 
     VkAttachmentDescription attachments[2]{

@@ -182,11 +182,7 @@ bool Image::isFormatSupported(const Device* device, VkFormat format, VkImageTili
 
     const VkFormatProperties& formatProperties = physicalDeviceInfo->formatProperties.at(format);
 
-    LUG_LOG.info("FORMAT: {}", RTTI::toStr(format));
     auto flagsStr = RTTI::VkFormatFeatureFlagsToStr(formatProperties.optimalTilingFeatures);
-    for (auto& flag: flagsStr) {
-        LUG_LOG.info("FLAGS: {}", flag);
-    }
     if (tiling == VK_IMAGE_TILING_LINEAR && (formatProperties.linearTilingFeatures & features) == features) {
         return true;
     }
