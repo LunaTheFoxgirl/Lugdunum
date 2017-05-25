@@ -61,8 +61,8 @@ private:
     std::vector<std::unique_ptr<Vulkan::API::DeviceMemory>> _vertexDeviceMemories;
     std::vector<std::unique_ptr<Vulkan::API::DeviceMemory>> _indexDeviceMemories;
 
-    int vertexCount = 0;
-    int indexCount = 0;
+    std::vector<int> _vertexCounts;
+    std::vector<int> _indexCounts;
 
     std::vector<Vulkan::API::CommandBuffer> _commandBuffers;
     std::vector<Vulkan::API::Semaphore> _guiSemaphores;

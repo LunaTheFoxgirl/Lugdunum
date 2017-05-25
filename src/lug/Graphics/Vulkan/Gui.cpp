@@ -128,8 +128,8 @@ bool Gui::endFrame(const std::vector<VkSemaphore>& waitSemaphores, uint32_t curr
 
     LUG_LOG.info("imDrawData->CmdListsCount {}", imDrawData->CmdListsCount);
 
-    vertexCount = 0;
-    indexCount = 0;
+    int vertexCount = 0;
+    int indexCount = 0;
 
     for (int32_t i = 0; i < imDrawData->CmdListsCount; i++) {
         const ImDrawList* cmd_list = imDrawData->CmdLists[i];
@@ -180,6 +180,8 @@ bool Gui::init(const std::vector<std::unique_ptr<API::ImageView>>& imageViews) {
     _vertexBuffers.resize(3);
     _vertexDeviceMemories.resize(3);
     _indexDeviceMemories.resize(3);
+    _vertexCounts.resize(3);
+    _indexCounts.resize(3);
 
     return createFontsTexture() && initFramebuffers(imageViews);
 }
@@ -838,7 +840,7 @@ void    Gui::updateBuffers(uint32_t currentImageIndex) {
     // Update buffers only if vertex or index count has been changed compared to current buffer size
 
     // Vertex buffer
-    if ((_vertexBuffers[currentImageIndex] == nullptr) || (vertexCount != imDrawData->TotalVtxCount)) {
+    if ((_vertexBuffers[currentImageIndex] == nullptr) || (_vertexCounts[currentImageIndex] != imDrawData->TotalVtxCount)) {
         {
             API::Queue* transfertQueue = _renderer.getQueue(VK_QUEUE_TRANSFER_BIT, false);
             std::vector<uint32_t> queueFamilyIndices = {(uint32_t)transfertQueue->getFamilyIdx()};
@@ -857,10 +859,10 @@ void    Gui::updateBuffers(uint32_t currentImageIndex) {
             _vertexBuffers[currentImageIndex]->bindMemory(_vertexDeviceMemories[currentImageIndex].get());
         }
 
-        vertexCount = imDrawData->TotalVtxCount;
+        _vertexCounts[currentImageIndex] = imDrawData->TotalVtxCount;
     }
 
-    if ((_indexBuffers[currentImageIndex] == nullptr) || (indexCount < imDrawData->TotalIdxCount)) {
+    if ((_indexBuffers[currentImageIndex] == nullptr) || (_indexCounts[currentImageIndex] < imDrawData->TotalIdxCount)) {
         {
             API::Queue* transfertQueue = _renderer.getQueue(VK_QUEUE_TRANSFER_BIT, false);
             std::vector<uint32_t> queueFamilyIndices = {(uint32_t)transfertQueue->getFamilyIdx()};
@@ -877,7 +879,7 @@ void    Gui::updateBuffers(uint32_t currentImageIndex) {
 
             _indexBuffers[currentImageIndex]->bindMemory(_indexDeviceMemories[currentImageIndex].get());
         }
-        indexCount = imDrawData->TotalIdxCount;
+        _indexCounts[currentImageIndex] = imDrawData->TotalIdxCount;
     }
 
     // Upload data
