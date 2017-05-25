@@ -42,11 +42,17 @@ bool Gui::beginFrame() {
 
     io.DisplaySize = ImVec2(_window.getWidth(), _window.getHeight());
 
+    uint32_t x;
+    uint32_t y;
+    _window.getMousePos(x, y);
+    io.MousePos = ImVec2(static_cast<float>(x), static_cast<float>(y));
+
+    io.MouseDown[0] = _window.isMousePressed(lug::Window::Mouse::Button::Left);
+    io.MouseDown[1] = _window.isMousePressed(lug::Window::Mouse::Button::Right);
+    io.MouseDown[2] = _window.isMousePressed(lug::Window::Mouse::Button::Middle);
+
     ImGui::NewFrame();
 
-    ImGui::Text("Test");
-
-    ImGui::SetNextWindowPos(ImVec2(100, 100), ImGuiSetCond_FirstUseEver);
     ImGui::ShowTestWindow();
 
     return false;

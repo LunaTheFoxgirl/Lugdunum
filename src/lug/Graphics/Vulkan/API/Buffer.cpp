@@ -47,6 +47,9 @@ Buffer::~Buffer() {
 }
 
 void Buffer::destroy() {
+    if (_gpuPtr != nullptr) {
+        unmapMemory();
+    }
     if (_buffer != VK_NULL_HANDLE) {
         vkDestroyBuffer(static_cast<VkDevice>(*_device), _buffer, nullptr);
         _buffer = VK_NULL_HANDLE;
