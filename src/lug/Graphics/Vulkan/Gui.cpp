@@ -60,6 +60,10 @@ bool Gui::beginFrame() {
 
 bool Gui::endFrame(const std::vector<VkSemaphore>& waitSemaphores, uint32_t currentImageIndex) {
     ImGui::Render();
+    if (!_guiFences[currentImageIndex].wait()) {
+        return false;
+    }
+    _guiFences[currentImageIndex].reset();
     updateBuffers(currentImageIndex);
 
 	LUG_LOG.info("currentImageIndex {}", currentImageIndex);
@@ -148,7 +152,7 @@ bool Gui::endFrame(const std::vector<VkSemaphore>& waitSemaphores, uint32_t curr
     _commandBuffers[currentImageIndex].end();
 
     std::vector<VkPipelineStageFlags> waitDstStageMasks(waitSemaphores.size(), VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT);
-	if (graphicsQueue->submit(_commandBuffers[currentImageIndex], {static_cast<VkSemaphore>(_guiSemaphores[currentImageIndex])}, waitSemaphores, waitDstStageMasks) == false) {
+	if (graphicsQueue->submit(_commandBuffers[currentImageIndex], {static_cast<VkSemaphore>(_guiSemaphores[currentImageIndex])}, waitSemaphores, waitDstStageMasks, static_cast<VkFence>(_guiFences[currentImageIndex])) == false) {
         LUG_LOG.error("GUI: Can't submit commandBuffer");
         return false;
     }
@@ -743,6 +747,7 @@ bool Gui::createFontsTexture() {
     _pipeline = Vulkan::API::Pipeline(pipeline, device, std::move(_pipelineLayout), std::move(renderPass));
 
     _guiSemaphores.resize(3);
+    _guiFences.resize(3);
     for (int i = 0; i < 3; i++)
     {
         {
@@ -759,6 +764,23 @@ bool Gui::createFontsTexture() {
             }
 
             _guiSemaphores[i] = API::Semaphore(semaphore, &_renderer.getDevice());
+        }
+
+        {
+            VkFence fence;
+            VkFenceCreateInfo fenceCreateInfo{
+                fenceCreateInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
+                fenceCreateInfo.pNext = nullptr,
+                fenceCreateInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT
+            };
+            VkResult result = vkCreateFence(static_cast<VkDevice>(*device), &fenceCreateInfo, nullptr, &fence);
+
+            if (result != VK_SUCCESS) {
+                LUG_LOG.error("RendererVulkan: Can't create swapchain fence: {}", result);
+                return false;
+            }
+
+            _guiFences[i] = API::Fence(fence, device);
         }
     }
 

@@ -66,6 +66,7 @@ private:
 
     std::vector<Vulkan::API::CommandBuffer> _commandBuffers;
     std::vector<Vulkan::API::Semaphore> _guiSemaphores;
+    std::vector<Vulkan::API::Fence> _guiFences;
 };
 
 #include "Gui.inl"
