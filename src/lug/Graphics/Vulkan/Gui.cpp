@@ -1,30 +1,14 @@
-// #include <chrono>
-#define NOMINMAX
- #include <algorithm>
-// #include <lug/Config.hpp>
-// #include <lug/Graphics/Light/Directional.hpp>
-// #include <lug/Graphics/Light/Point.hpp>
-// #include <lug/Graphics/Light/Spot.hpp>
-// #include <lug/Graphics/Render/Queue.hpp>
-// #include <lug/Graphics/Render/Gui.hpp>
-// #include <lug/Graphics/Scene/MeshInstance.hpp>
-// #include <lug/Graphics/Scene/ModelInstance.hpp>
-// #include <lug/Graphics/Scene/Node.hpp>
-// #include <lug/Graphics/Vulkan/Render/Camera.hpp>
-// #include <lug/Graphics/Vulkan/Render/Mesh.hpp>
-// #include <lug/Graphics/Vulkan/Render/Model.hpp>
-// #include <lug/Graphics/Vulkan/Render/View.hpp>
-// #include <lug/Graphics/Vulkan/Renderer.hpp>
-// #include <lug/Math/Matrix.hpp>
-// #include <lug/Math/Vector.hpp>
-// #include <lug/Math/Geometry/Transform.hpp>
-// #include <lug/System/Logger/Logger.hpp>
-
-#include <lug/Graphics/Vulkan/API/Fence.hpp>
-#include <lug/Graphics/Vulkan/API/ShaderModule.hpp>
-#include <lug/Graphics/Render/dear_imgui/imgui.h>
+#include <lug/Config.hpp>
+#if defined LUG_SYSTEM_WINDOWS
+	#define NOMINMAX
+#endif
+#include <algorithm>
 
 #include <lug/Graphics/Vulkan/Gui.hpp>
+#include <lug/Graphics/Render/dear_imgui/imgui.h>
+#include <lug/Graphics/Vulkan/API/ShaderModule.hpp>
+#include <lug/Graphics/Vulkan/API/Fence.hpp>
+
 
 namespace lug {
 namespace Graphics {
@@ -35,6 +19,7 @@ Gui::Gui(Renderer &renderer, Render::Window &window) : _renderer(renderer), _win
 }
 
 Gui::~Gui() {
+    vkDestroySampler(static_cast<VkDevice>(_renderer.getDevice()), _sampler, nullptr);
 }
 
 bool Gui::beginFrame() {
@@ -66,8 +51,7 @@ bool Gui::endFrame(const std::vector<VkSemaphore>& waitSemaphores, uint32_t curr
     _guiFences[currentImageIndex].reset();
     updateBuffers(currentImageIndex);
 
-	LUG_LOG.info("currentImageIndex {}", currentImageIndex);
-    API::Queue* graphicsQueue = _renderer.getQueue(VK_QUEUE_GRAPHICS_BIT, true);
+   API::Queue* graphicsQueue = _renderer.getQueue(VK_QUEUE_GRAPHICS_BIT, true);
 
     _commandBuffers[currentImageIndex].reset();
     _commandBuffers[currentImageIndex].begin();
@@ -87,12 +71,6 @@ bool Gui::endFrame(const std::vector<VkSemaphore>& waitSemaphores, uint32_t curr
 
     API::RenderPass* renderPass = _pipeline.getRenderPass();
 
-    VkClearValue clearValues[1];
-
-    clearValues[0].color = { { 0.2f, 0.2f, 0.2f, 1.0f} };
-
-//    clearValues[1].depthStencil = { 1.0f, 0 };
-
 	VkRenderPassBeginInfo beginInfo{
 		beginInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
 		beginInfo.pNext = nullptr,
@@ -111,7 +89,6 @@ bool Gui::endFrame(const std::vector<VkSemaphore>& waitSemaphores, uint32_t curr
 	_descriptorSet[0].bind(_pipeline.getLayout(), &_commandBuffers[currentImageIndex], 0, 0, nullptr);
 	_pipeline.bind(&_commandBuffers[currentImageIndex]);
 
-
     VkDeviceSize offsets[1] = { 0 };
     VkBuffer vertexBuffer = static_cast<VkBuffer>(*_vertexBuffers[currentImageIndex]);
 
@@ -126,14 +103,11 @@ bool Gui::endFrame(const std::vector<VkSemaphore>& waitSemaphores, uint32_t curr
     // Render commands
     ImDrawData* imDrawData = ImGui::GetDrawData();
 
-    LUG_LOG.info("imDrawData->CmdListsCount {}", imDrawData->CmdListsCount);
-
     int vertexCount = 0;
     int indexCount = 0;
 
     for (int32_t i = 0; i < imDrawData->CmdListsCount; i++) {
         const ImDrawList* cmd_list = imDrawData->CmdLists[i];
-        LUG_LOG.info("cmd_list->CmdBuffer.Size {}", cmd_list->CmdBuffer.Size);
         for (int32_t j = 0; j < cmd_list->CmdBuffer.Size; j++) {
             const ImDrawCmd* pcmd = &cmd_list->CmdBuffer[j];
             VkRect2D scissorRect;
@@ -161,29 +135,21 @@ bool Gui::endFrame(const std::vector<VkSemaphore>& waitSemaphores, uint32_t curr
 }
 
 bool Gui::init(const std::vector<std::unique_ptr<API::ImageView>>& imageViews) {
-    // Color scheme
-    ImGuiStyle& style = ImGui::GetStyle();
-    style.Colors[ImGuiCol_TitleBg] = ImVec4(1.0f, 0.0f, 0.0f, 0.6f);
-    style.Colors[ImGuiCol_TitleBgActive] = ImVec4(1.0f, 0.0f, 0.0f, 0.8f);
-    style.Colors[ImGuiCol_MenuBarBg] = ImVec4(1.0f, 0.0f, 0.0f, 0.4f);
-    style.Colors[ImGuiCol_Header] = ImVec4(1.0f, 0.0f, 0.0f, 0.4f);
-    style.Colors[ImGuiCol_CheckMark] = ImVec4(0.0f, 1.0f, 0.0f, 1.0f);
-    // Dimensions
     ImGuiIO& io = ImGui::GetIO();
     io.DisplaySize = ImVec2(_window.getWidth(), _window.getHeight());
     io.DisplayFramebufferScale = ImVec2(1.0f, 1.0f);
 
     API::Queue* graphicsQueue = _renderer.getQueue(VK_QUEUE_GRAPHICS_BIT, true);
-    _commandBuffers = graphicsQueue->getCommandPool().createCommandBuffers(VK_COMMAND_BUFFER_LEVEL_PRIMARY, 3);
+    _commandBuffers = graphicsQueue->getCommandPool().createCommandBuffers(VK_COMMAND_BUFFER_LEVEL_PRIMARY, static_cast<uint32_t>(imageViews.size()));
 
-    _indexBuffers.resize(3);
-    _vertexBuffers.resize(3);
-    _vertexDeviceMemories.resize(3);
-    _indexDeviceMemories.resize(3);
-    _vertexCounts.resize(3);
-    _indexCounts.resize(3);
+    _indexBuffers.resize(imageViews.size());
+    _vertexBuffers.resize(imageViews.size());
+    _vertexDeviceMemories.resize(imageViews.size());
+    _indexDeviceMemories.resize(imageViews.size());
+    _vertexCounts.resize(imageViews.size());
+    _indexCounts.resize(imageViews.size());
 
-    return createFontsTexture() && initFramebuffers(imageViews);
+    return createFontsTexture() && initPipeline() && initFramebuffers(imageViews);
 }
 
 bool Gui::createFontsTexture() {
@@ -197,17 +163,14 @@ bool Gui::createFontsTexture() {
 
     auto device = &_renderer.getDevice();
 
-    VkFormat imagesFormat = VK_FORMAT_R8G8B8A8_UNORM;
-    // TODO(Nokitoo): Check supported format (VK_FORMAT_FEATURE_TRANSFER_DST_BIT_KHR is not returned by vulkaninfo)
-    // find format available on the device
-/*    VkFormat imagesFormat = API::Image::findSupportedFormat(device,
+    //Formats that are required to support VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT must also support VK_FORMAT_FEATURE_TRANSFER_SRC_BIT_KHR and VK_FORMAT_FEATURE_TRANSFER_DST_BIT_KHR.
+    VkFormat imagesFormat = API::Image::findSupportedFormat(device,
                                                        {VK_FORMAT_R8G8B8A8_UNORM, VK_FORMAT_D32_SFLOAT, VK_FORMAT_D32_SFLOAT_S8_UINT, VK_FORMAT_D24_UNORM_S8_UINT},
                                                         VK_IMAGE_TILING_OPTIMAL,
-                                                        VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT | VK_FORMAT_FEATURE_TRANSFER_DST_BIT_KHR);*/
+                                                        VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT);
 
 
-    if (imagesFormat == VK_FORMAT_UNDEFINED)
-    {
+    if (imagesFormat == VK_FORMAT_UNDEFINED) {
         LUG_LOG.error("Gui::createFontsTexture: Can't find any supported Format");
         return false;
     }
@@ -219,16 +182,10 @@ bool Gui::createFontsTexture() {
         extent.depth = 1
     };
 
-//    API::Queue* graphicsQueue = _renderer.getQueue(VK_QUEUE_GRAPHICS_BIT, false);
     API::Queue* transfertQueue = _renderer.getQueue(VK_QUEUE_TRANSFER_BIT, false);
 
     // Create FontsTexture image
     {
-        // Create Vulkan Image
-
-        // TODO chopper queue de graphics && transfert pour le rendre available sur les deux. Si les deux queue sont les meme alors renvoei qu'un seul int.
-        // si deux queue : mode de partage partager , si une seule, en exclusive
-
         _image = API::Image::create(device, imagesFormat, extent, VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT);
         if (!_image) {
             LUG_LOG.error("GUI: Can't create depth buffer image");
@@ -239,20 +196,17 @@ bool Gui::createFontsTexture() {
 
         uint32_t memoryTypeIndex = API::DeviceMemory::findMemoryType(device, imageRequirements, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 
-        // Allocate image requirements size for image
         _fontsTextureHostMemory = API::DeviceMemory::allocate(device, imageRequirements.size, memoryTypeIndex);
         if (!_fontsTextureHostMemory) {
             LUG_LOG.error("GUI: Can't allocate device memory for depth buffer images");
             return false;
         }
 
-        // Bind memory to image
         _image->bindMemory(_fontsTextureHostMemory.get());
     }
 
     // Create FontsTexture image view
     {
-        // Create Vulkan Image View
         _imageView = API::ImageView::create(device, _image.get(), imagesFormat, VK_IMAGE_ASPECT_COLOR_BIT);
         if (!_imageView) {
             LUG_LOG.error("GUI: Can't create image view");
@@ -264,9 +218,6 @@ bool Gui::createFontsTexture() {
     {
         std::vector<uint32_t> queueFamilyIndices = { (uint32_t)_renderer.getQueue(VK_QUEUE_TRANSFER_BIT, false)->getFamilyIdx()};
 
-
-        // TODO chopper queue de graphics && transfert pour le rendre available sur les deux. Si les deux queue sont les meme alors renvoei qu'un seul int.
-        // si deux queue : mode de partage partager , si une seule, en exclusive
         auto stagingBuffer = API::Buffer::create(device, (uint32_t)queueFamilyIndices.size(), queueFamilyIndices.data(), uploadSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, 0, VK_SHARING_MODE_EXCLUSIVE);
         if (!stagingBuffer) {
             LUG_LOG.error("GUI: Can't create buffer");
@@ -288,65 +239,62 @@ bool Gui::createFontsTexture() {
         {
             auto commandBuffer = transfertQueue->getCommandPool().createCommandBuffers();
 
-            // Fence
-            {
-                VkFence fence;
-                VkFenceCreateInfo createInfo{
-                    createInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
-                    createInfo.pNext = nullptr,
-                    createInfo.flags = 0
-                };
-                VkResult result = vkCreateFence(static_cast<VkDevice>(_renderer.getDevice()), &createInfo, nullptr, &fence);
-                if (result != VK_SUCCESS) {
-                    LUG_LOG.error("GUI: Can't create swapchain fence: {}", result);
-                    return false;
-                }
-                _fence = Vulkan::API::Fence(fence, &_renderer.getDevice());
+            VkFence fence;
+            VkFenceCreateInfo createInfo{
+                createInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
+                createInfo.pNext = nullptr,
+                createInfo.flags = 0
+            };
+            VkResult result = vkCreateFence(static_cast<VkDevice>(_renderer.getDevice()), &createInfo, nullptr, &fence);
+            if (result != VK_SUCCESS) {
+                LUG_LOG.error("GUI: Can't create swapchain fence: {}", result);
+                return false;
+            }
+            auto _fence = Vulkan::API::Fence(fence, &_renderer.getDevice());
 
-                commandBuffer[0].begin();
-                // Prepare for transfer
-                _image->changeLayout(commandBuffer[0], 0, VK_ACCESS_TRANSFER_WRITE_BIT,
-                                     VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-                                     VK_PIPELINE_STAGE_HOST_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT);
+            commandBuffer[0].begin();
+            // Prepare for transfer
+            _image->changeLayout(commandBuffer[0], 0, VK_ACCESS_TRANSFER_WRITE_BIT,
+                                 VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                                 VK_PIPELINE_STAGE_HOST_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT);
 
-                // Copy
-                VkBufferImageCopy bufferCopyRegion = {};
-                bufferCopyRegion.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-                bufferCopyRegion.imageSubresource.layerCount = 1;
-                bufferCopyRegion.imageExtent.width = texWidth;
-                bufferCopyRegion.imageExtent.height = texHeight;
-                bufferCopyRegion.imageExtent.depth = 1;
+            // Copy
+            VkBufferImageCopy bufferCopyRegion = {};
+            bufferCopyRegion.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+            bufferCopyRegion.imageSubresource.layerCount = 1;
+            bufferCopyRegion.imageExtent.width = texWidth;
+            bufferCopyRegion.imageExtent.height = texHeight;
+            bufferCopyRegion.imageExtent.depth = 1;
 
-                vkCmdCopyBufferToImage(
-                    static_cast<VkCommandBuffer>(commandBuffer[0]),
-                    static_cast<VkBuffer>(*stagingBuffer),
-                    static_cast<VkImage>(*_image),
-                    VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-                    1,
-                    &bufferCopyRegion
-                );
+            vkCmdCopyBufferToImage(
+                static_cast<VkCommandBuffer>(commandBuffer[0]),
+                static_cast<VkBuffer>(*stagingBuffer),
+                static_cast<VkImage>(*_image),
+                VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                1,
+                &bufferCopyRegion
+            );
 
-                // Prepare for shader read
-                _image->changeLayout(commandBuffer[0], VK_ACCESS_TRANSFER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT,
-                    VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-                    VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT);
+            // Prepare for shader read
+            _image->changeLayout(commandBuffer[0], VK_ACCESS_TRANSFER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT,
+                VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+                VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT);
 
-                commandBuffer[0].end();
-                if (transfertQueue->submit(commandBuffer[0], {}, {}, {}, fence) == false) {
-                    LUG_LOG.error("GUI: Can't submit commandBuffer");
-                    return false;
-                }
+            commandBuffer[0].end();
+            if (transfertQueue->submit(commandBuffer[0], {}, {}, {}, fence) == false) {
+                LUG_LOG.error("GUI: Can't submit commandBuffer");
+                return false;
             }
 
             // TODO : set a define for the fence timeout
-            if (_fence.wait() == false) {
+            if (!_fence.wait()) {
                 LUG_LOG.error("Gui: Can't vkWaitForFences");
                 return false;
             }
 
             _fence.destroy();
-//            commandBuffer.destroy();
-//            stagingBuffer.destroy();
+          commandBuffer[0].destroy();
+          stagingBuffer->destroy();
         }
     }
 
@@ -367,7 +315,52 @@ bool Gui::createFontsTexture() {
         vkCreateSampler(static_cast<VkDevice>(_renderer.getDevice()), &samplerInfo, nullptr, &_sampler);
     }
 
-    std::vector<std::unique_ptr<Vulkan::API::DescriptorSetLayout>> descriptorSetLayouts;
+    // TODO
+    _guiSemaphores.resize(3);
+    _guiFences.resize(3);
+    for (int i = 0; i < 3; i++) {
+    {
+        VkSemaphore semaphore;
+        VkSemaphoreCreateInfo semaphoreCreateInfo{
+            semaphoreCreateInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
+            semaphoreCreateInfo.pNext = nullptr,
+            semaphoreCreateInfo.flags = 0
+        };
+        VkResult result = vkCreateSemaphore(static_cast<VkDevice>(*device), &semaphoreCreateInfo, nullptr, &semaphore);
+        if (result != VK_SUCCESS) {
+            LUG_LOG.error("RendererVulkan: Can't create swapchain semaphore: {}", result);
+            return false;
+        }
+
+        _guiSemaphores[i] = API::Semaphore(semaphore, &_renderer.getDevice());
+    }
+
+    {
+        VkFence fence;
+        VkFenceCreateInfo fenceCreateInfo{
+            fenceCreateInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
+            fenceCreateInfo.pNext = nullptr,
+            fenceCreateInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT
+        };
+        VkResult result = vkCreateFence(static_cast<VkDevice>(*device), &fenceCreateInfo, nullptr, &fence);
+
+        if (result != VK_SUCCESS) {
+            LUG_LOG.error("RendererVulkan: Can't create swapchain fence: {}", result);
+            return false;
+        }
+
+        _guiFences[i] = API::Fence(fence, device);
+    }
+}
+
+
+    return true;
+}
+
+bool Gui::initPipeline() {
+	auto device = &_renderer.getDevice();
+
+	std::vector<std::unique_ptr<Vulkan::API::DescriptorSetLayout>> descriptorSetLayouts;
     {
         // creating descriptor pool
         VkDescriptorPoolSize descriptorPoolSize;
@@ -400,8 +393,7 @@ bool Gui::createFontsTexture() {
 
 
         // create descriptor set
-		_descriptorSet = _descriptorPool.createDescriptorSets({ static_cast<VkDescriptorSetLayout>(*descriptorSetLayouts[0]) });
-//        _descriptorSet = static_cast<VkDescriptorSet>(_descriptorPool.createDescriptorSets({static_cast<VkDescriptorSetLayout>(*descriptorSetLayouts[0])})[0]);
+        _descriptorSet = _descriptorPool.createDescriptorSets({ static_cast<VkDescriptorSetLayout>(*descriptorSetLayouts[0]) });
 
         // write descriptor set
         VkDescriptorImageInfo descriptorImageInfo;
@@ -421,7 +413,6 @@ bool Gui::createFontsTexture() {
             write.pBufferInfo = nullptr,
             write.pTexelBufferView = nullptr
         };
-
 
         // update descriptor set
         vkUpdateDescriptorSets(static_cast<VkDevice>(_renderer.getDevice()), 1, &write, 0, nullptr);
@@ -736,8 +727,6 @@ bool Gui::createFontsTexture() {
 
     VkPipeline pipeline = VK_NULL_HANDLE;
     {
-        // TODO: create with VkPipelineCache
-        // TODO: create multiple pipelines with one call
         VkResult result = vkCreateGraphicsPipelines(static_cast<VkDevice>(*device), VK_NULL_HANDLE, 1, &graphicPipelineCreateInfo, nullptr, &pipeline);
 
         if (result != VK_SUCCESS) {
@@ -747,51 +736,10 @@ bool Gui::createFontsTexture() {
     }
 
     _pipeline = Vulkan::API::Pipeline(pipeline, device, std::move(_pipelineLayout), std::move(renderPass));
-
-    _guiSemaphores.resize(3);
-    _guiFences.resize(3);
-    for (int i = 0; i < 3; i++)
-    {
-        {
-            VkSemaphore semaphore;
-            VkSemaphoreCreateInfo semaphoreCreateInfo{
-                semaphoreCreateInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
-                semaphoreCreateInfo.pNext = nullptr,
-                semaphoreCreateInfo.flags = 0
-            };
-            VkResult result = vkCreateSemaphore(static_cast<VkDevice>(*device), &semaphoreCreateInfo, nullptr, &semaphore);
-            if (result != VK_SUCCESS) {
-                LUG_LOG.error("RendererVulkan: Can't create swapchain semaphore: {}", result);
-                return false;
-            }
-
-            _guiSemaphores[i] = API::Semaphore(semaphore, &_renderer.getDevice());
-        }
-
-        {
-            VkFence fence;
-            VkFenceCreateInfo fenceCreateInfo{
-                fenceCreateInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
-                fenceCreateInfo.pNext = nullptr,
-                fenceCreateInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT
-            };
-            VkResult result = vkCreateFence(static_cast<VkDevice>(*device), &fenceCreateInfo, nullptr, &fence);
-
-            if (result != VK_SUCCESS) {
-                LUG_LOG.error("RendererVulkan: Can't create swapchain fence: {}", result);
-                return false;
-            }
-
-            _guiFences[i] = API::Fence(fence, device);
-        }
-    }
-
-
-    return true;
+    return (true);
 }
 
 bool Gui::initFramebuffers(const std::vector<std::unique_ptr<API::ImageView>>& imageViews) {
-    // The lights pipelines renderpass are compatible, so we don't need to create different frame buffers for each pipeline
     API::RenderPass* renderPass = _pipeline.getRenderPass();
     auto device = &_renderer.getDevice();
 
@@ -818,8 +766,6 @@ bool Gui::initFramebuffers(const std::vector<std::unique_ptr<API::ImageView>>& i
             LUG_LOG.error("RendererVulkan: Failed to create framebuffer: {}", result);
             return false;
         }
-        // TODO: Remove the extent initializer list when struct Extent is externalised
-        //_framebuffer.destroy();
         _framebuffers[i] = API::Framebuffer(fb, device, {imageViews[i]->getExtent().width, imageViews[i]->getExtent().height});
     }
 
@@ -838,67 +784,69 @@ void    Gui::updateBuffers(uint32_t currentImageIndex) {
     VkDeviceSize indexBufferSize = imDrawData->TotalIdxCount * sizeof(ImDrawIdx);
 
     // Update buffers only if vertex or index count has been changed compared to current buffer size
+    {
+        // Vertex buffer
+        if ((_vertexBuffers[currentImageIndex] == nullptr) || (_vertexCounts[currentImageIndex] != imDrawData->TotalVtxCount)) {
+            {
+                API::Queue* transfertQueue = _renderer.getQueue(VK_QUEUE_TRANSFER_BIT, false);
+                std::vector<uint32_t> queueFamilyIndices = {(uint32_t)transfertQueue->getFamilyIdx()};
+                _vertexBuffers[currentImageIndex] = API::Buffer::create(device, (uint32_t)queueFamilyIndices.size(), queueFamilyIndices.data(), (uint32_t)vertexBufferSize, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT);
+                if (!_vertexBuffers[currentImageIndex])
+                    return;
 
-    // Vertex buffer
-    if ((_vertexBuffers[currentImageIndex] == nullptr) || (_vertexCounts[currentImageIndex] != imDrawData->TotalVtxCount)) {
-        {
-            API::Queue* transfertQueue = _renderer.getQueue(VK_QUEUE_TRANSFER_BIT, false);
-            std::vector<uint32_t> queueFamilyIndices = {(uint32_t)transfertQueue->getFamilyIdx()};
-            _vertexBuffers[currentImageIndex] = API::Buffer::create(device, (uint32_t)queueFamilyIndices.size(), queueFamilyIndices.data(), (uint32_t)vertexBufferSize, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT);
-            if (!_vertexBuffers[currentImageIndex])
-                return;
+                auto& requirements = _vertexBuffers[currentImageIndex]->getRequirements();
 
-            auto& requirements = _vertexBuffers[currentImageIndex]->getRequirements();
+                uint32_t memoryTypeIndex = API::DeviceMemory::findMemoryType(device, requirements, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
+                _vertexDeviceMemories[currentImageIndex] = API::DeviceMemory::allocate(device, requirements.size, memoryTypeIndex);
+                if (!_vertexDeviceMemories[currentImageIndex]) {
+                    return;
+                }
 
-            uint32_t memoryTypeIndex = API::DeviceMemory::findMemoryType(device, requirements, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
-            _vertexDeviceMemories[currentImageIndex] = API::DeviceMemory::allocate(device, requirements.size, memoryTypeIndex);
-            if (!_vertexDeviceMemories[currentImageIndex]) {
-                return;
+                _vertexBuffers[currentImageIndex]->bindMemory(_vertexDeviceMemories[currentImageIndex].get());
             }
 
-            _vertexBuffers[currentImageIndex]->bindMemory(_vertexDeviceMemories[currentImageIndex].get());
+            _vertexCounts[currentImageIndex] = imDrawData->TotalVtxCount;
         }
 
-        _vertexCounts[currentImageIndex] = imDrawData->TotalVtxCount;
-    }
+        // IndexBuffer
+        if ((_indexBuffers[currentImageIndex] == nullptr) || (_indexCounts[currentImageIndex] < imDrawData->TotalIdxCount)) {
+            {
+                API::Queue* transfertQueue = _renderer.getQueue(VK_QUEUE_TRANSFER_BIT, false);
+                std::vector<uint32_t> queueFamilyIndices = {(uint32_t)transfertQueue->getFamilyIdx()};
+                _indexBuffers[currentImageIndex] = API::Buffer::create(device, (uint32_t)queueFamilyIndices.size(), queueFamilyIndices.data(), (uint32_t)indexBufferSize, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT);
+                if (!_indexBuffers[currentImageIndex])
+                    return;
 
-    if ((_indexBuffers[currentImageIndex] == nullptr) || (_indexCounts[currentImageIndex] < imDrawData->TotalIdxCount)) {
-        {
-            API::Queue* transfertQueue = _renderer.getQueue(VK_QUEUE_TRANSFER_BIT, false);
-            std::vector<uint32_t> queueFamilyIndices = {(uint32_t)transfertQueue->getFamilyIdx()};
-            _indexBuffers[currentImageIndex] = API::Buffer::create(device, (uint32_t)queueFamilyIndices.size(), queueFamilyIndices.data(), (uint32_t)indexBufferSize, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT);
-            if (!_indexBuffers[currentImageIndex])
-                return;
+                auto& requirements = _indexBuffers[currentImageIndex]->getRequirements();
+                uint32_t memoryTypeIndex = API::DeviceMemory::findMemoryType(device, requirements, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
+                _indexDeviceMemories[currentImageIndex] = API::DeviceMemory::allocate(device, requirements.size, memoryTypeIndex);
+                if (!_indexDeviceMemories[currentImageIndex]) {
+                    return;
+                }
 
-            auto& requirements = _indexBuffers[currentImageIndex]->getRequirements();
-            uint32_t memoryTypeIndex = API::DeviceMemory::findMemoryType(device, requirements, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
-            _indexDeviceMemories[currentImageIndex] = API::DeviceMemory::allocate(device, requirements.size, memoryTypeIndex);
-            if (!_indexDeviceMemories[currentImageIndex]) {
-                return;
+                _indexBuffers[currentImageIndex]->bindMemory(_indexDeviceMemories[currentImageIndex].get());
             }
-
-            _indexBuffers[currentImageIndex]->bindMemory(_indexDeviceMemories[currentImageIndex].get());
-        }
-        _indexCounts[currentImageIndex] = imDrawData->TotalIdxCount;
+            _indexCounts[currentImageIndex] = imDrawData->TotalIdxCount;
+        }        
     }
 
     // Upload data
+    {
+        ImDrawIdx* idxDst = (ImDrawIdx*)_indexBuffers[currentImageIndex]->getGpuPtr();
+        ImDrawVert* vtxDst = (ImDrawVert*)_vertexBuffers[currentImageIndex]->getGpuPtr();
 
-    ImDrawIdx* idxDst = (ImDrawIdx*)_indexBuffers[currentImageIndex]->getGpuPtr();
-	ImDrawVert* vtxDst = (ImDrawVert*)_vertexBuffers[currentImageIndex]->getGpuPtr();
-
-
-    for (int n = 0; n < imDrawData->CmdListsCount; n++) {
-        const ImDrawList* cmd_list = imDrawData->CmdLists[n];
-        memcpy(vtxDst, cmd_list->VtxBuffer.Data, cmd_list->VtxBuffer.Size * sizeof(ImDrawVert));
-        memcpy(idxDst, cmd_list->IdxBuffer.Data, cmd_list->IdxBuffer.Size * sizeof(ImDrawIdx));
-        vtxDst += cmd_list->VtxBuffer.Size;
-        idxDst += cmd_list->IdxBuffer.Size;
+        for (int n = 0; n < imDrawData->CmdListsCount; n++) {
+            const ImDrawList* cmd_list = imDrawData->CmdLists[n];
+            memcpy(vtxDst, cmd_list->VtxBuffer.Data, cmd_list->VtxBuffer.Size * sizeof(ImDrawVert));
+            memcpy(idxDst, cmd_list->IdxBuffer.Data, cmd_list->IdxBuffer.Size * sizeof(ImDrawIdx));
+            vtxDst += cmd_list->VtxBuffer.Size;
+            idxDst += cmd_list->IdxBuffer.Size;
+        }
     }
 
-    // Flush to make writes visible to GPU
-/*    vertexBuffer.flush();
-    indexBuffer.flush();*/
+    // Flush to make writes visible to GPU TODO()
+    // vertexBuffer.flush();
+    // indexBuffer.flush();
 }
 
 } // Vulkan

@@ -19,10 +19,13 @@ Buffer::Buffer(
 Buffer::Buffer(Buffer&& buffer) {
     _buffer = buffer._buffer;
     _device = buffer._device;
+    _gpuPtr = buffer._gpuPtr;
     _deviceMemory = buffer._deviceMemory;
     _requirements = buffer._requirements;
+
     buffer._buffer = VK_NULL_HANDLE;
     buffer._device = nullptr;
+    buffer._gpuPtr = nullptr;
     buffer._deviceMemory = nullptr;
     buffer._requirements = {};
 }
@@ -32,10 +35,13 @@ Buffer& Buffer::operator=(Buffer&& buffer) {
 
     _buffer = buffer._buffer;
     _device = buffer._device;
+    _gpuPtr = buffer._gpuPtr;
     _deviceMemory = buffer._deviceMemory;
     _requirements = buffer._requirements;
+
     buffer._buffer = VK_NULL_HANDLE;
     buffer._device = nullptr;
+    buffer._gpuPtr = nullptr;
     buffer._deviceMemory = nullptr;
     buffer._requirements = {};
 
@@ -47,10 +53,10 @@ Buffer::~Buffer() {
 }
 
 void Buffer::destroy() {
-    if (_gpuPtr != nullptr) {
-        unmapMemory();
-    }
     if (_buffer != VK_NULL_HANDLE) {
+        if (_gpuPtr != nullptr) {
+            unmapMemory();
+        }
         vkDestroyBuffer(static_cast<VkDevice>(*_device), _buffer, nullptr);
         _buffer = VK_NULL_HANDLE;
     }
