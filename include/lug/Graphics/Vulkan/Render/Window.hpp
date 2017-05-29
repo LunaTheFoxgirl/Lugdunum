@@ -47,7 +47,7 @@ public:
 
     bool pollEvent(lug::Window::Event&) override;
 
-    bool beginFrame() override final;
+    bool beginFrame(const lug::System::Time &elapsedTime) override final;
     bool endFrame() override final;
 
     const API::Swapchain& getSwapchain() const;

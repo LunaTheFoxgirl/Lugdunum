@@ -4,7 +4,7 @@
 #include <lug/Core/Export.hpp>
 #include <lug/Graphics/Graphics.hpp>
 #include <lug/Graphics/Render/Window.hpp>
-#include <lug/System/Time.hpp>
+#include <lug/System/Clock.hpp>
 
 namespace lug {
 namespace Core {
@@ -171,7 +171,7 @@ public:
     virtual void onFrame(const System::Time& elapsedTime) = 0;
 
 private:
-    bool beginFrame();
+    bool beginFrame(const lug::System::Time &elapsedTime);
     bool endFrame();
 
 private:

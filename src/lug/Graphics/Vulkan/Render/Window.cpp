@@ -38,14 +38,16 @@ bool Window::pollEvent(lug::Window::Event& event) {
             }
         }
 
+        _imGuiInstance->processEvents(event);
+
         return true;
     }
 
     return false;
 }
 
-bool Window::beginFrame() {
-    _imGuiInstance->beginFrame();
+bool Window::beginFrame(const lug::System::Time &elapsedTime) {
+    _imGuiInstance->beginFrame(elapsedTime);
     AcquireImageData* acquireImageData = nullptr;
     // Retrieve free AcquireImageData
     {
@@ -62,7 +64,6 @@ bool Window::beginFrame() {
             if (!initSwapchainCapabilities() || !initSwapchain() || !buildCommandBuffers()) {
                 return false;
             }
-            LUG_LOG.info("fsdfdsfsffsdfdsfhsdfkjhdskjhfjksdhfkjhshdskfjhskjsd ");
             _imGuiInstance->initFramebuffers(_swapchain.getImagesViews());
             for (auto& renderView: _renderViews) {
                 View* renderView_ = static_cast<View*>(renderView.get());

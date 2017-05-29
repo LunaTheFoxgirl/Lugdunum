@@ -1,6 +1,5 @@
 #include <chrono>
 #include <lug/Core/Application.hpp>
-#include <lug/System/Clock.hpp>
 #include <lug/System/Logger/Logger.hpp>
 
 namespace lug {
@@ -56,7 +55,7 @@ bool Application::run() {
             }
         }
 
-        beginFrame();
+        beginFrame(elapsedTime);
         onFrame(elapsedTime);
         endFrame();
 
@@ -77,8 +76,8 @@ void Application::close() {
     _closed = true;
 }
 
-bool Application::beginFrame() {
-    return _graphics.getRenderer()->beginFrame();
+bool Application::beginFrame(const lug::System::Time &elapsedTime) {
+    return _graphics.getRenderer()->beginFrame(elapsedTime);
 }
 
 bool Application::endFrame() {

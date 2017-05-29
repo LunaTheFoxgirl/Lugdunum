@@ -8,6 +8,7 @@
 #include <lug/Graphics/Render/dear_imgui/imgui.h>
 #include <lug/Graphics/Vulkan/API/ShaderModule.hpp>
 #include <lug/Graphics/Vulkan/API/Fence.hpp>
+#include <lug/Window/Keyboard.hpp>
 
 
 namespace lug {
@@ -22,8 +23,10 @@ Gui::~Gui() {
     vkDestroySampler(static_cast<VkDevice>(_renderer.getDevice()), _sampler, nullptr);
 }
 
-bool Gui::beginFrame() {
+bool Gui::beginFrame(const System::Time &elapsedTime) {
     ImGuiIO& io = ImGui::GetIO();
+
+    io.DeltaTime = elapsedTime.getSeconds();
 
     io.DisplaySize = ImVec2(_window.getWidth(), _window.getHeight());
 
@@ -39,7 +42,7 @@ bool Gui::beginFrame() {
     ImGui::NewFrame();
 
     ImGui::ShowTestWindow();
-
+    
     return false;
 }
 
@@ -136,6 +139,9 @@ bool Gui::endFrame(const std::vector<VkSemaphore>& waitSemaphores, uint32_t curr
 
 bool Gui::init(const std::vector<std::unique_ptr<API::ImageView>>& imageViews) {
     ImGuiIO& io = ImGui::GetIO();
+
+    initKeyMapping();
+
     io.DisplaySize = ImVec2(_window.getWidth(), _window.getHeight());
     io.DisplayFramebufferScale = ImVec2(1.0f, 1.0f);
 
@@ -150,6 +156,29 @@ bool Gui::init(const std::vector<std::unique_ptr<API::ImageView>>& imageViews) {
     _indexCounts.resize(imageViews.size());
 
     return createFontsTexture() && initPipeline() && initFramebuffers(imageViews);
+}
+
+void Gui::initKeyMapping(){
+    ImGuiIO& io = ImGui::GetIO();
+    io.KeyMap[ImGuiKey_Tab] = static_cast<int>(lug::Window::Keyboard::Key::Tab);    // Keyboard mapping. ImGui will use those indices to peek into the io.KeyDown[] array.
+    io.KeyMap[ImGuiKey_LeftArrow] = static_cast<int>(lug::Window::Keyboard::Key::Left);
+    io.KeyMap[ImGuiKey_RightArrow] = static_cast<int>(lug::Window::Keyboard::Key::Right);
+    io.KeyMap[ImGuiKey_UpArrow] = static_cast<int>(lug::Window::Keyboard::Key::Up);
+    io.KeyMap[ImGuiKey_DownArrow] = static_cast<int>(lug::Window::Keyboard::Key::Down);
+    io.KeyMap[ImGuiKey_PageUp] = static_cast<int>(lug::Window::Keyboard::Key::PageUp);
+    io.KeyMap[ImGuiKey_PageDown] = static_cast<int>(lug::Window::Keyboard::Key::PageDown);
+    io.KeyMap[ImGuiKey_Home] = static_cast<int>(lug::Window::Keyboard::Key::Home);
+    io.KeyMap[ImGuiKey_End] = static_cast<int>(lug::Window::Keyboard::Key::End);
+    io.KeyMap[ImGuiKey_Delete] = static_cast<int>(lug::Window::Keyboard::Key::Delete);
+    io.KeyMap[ImGuiKey_Backspace] = static_cast<int>(lug::Window::Keyboard::Key::BackSpace);
+    io.KeyMap[ImGuiKey_Enter] = static_cast<int>(lug::Window::Keyboard::Key::Return);
+    io.KeyMap[ImGuiKey_Escape] = static_cast<int>(lug::Window::Keyboard::Key::Escape);
+    io.KeyMap[ImGuiKey_A] = static_cast<int>(lug::Window::Keyboard::Key::A);
+    io.KeyMap[ImGuiKey_C] = static_cast<int>(lug::Window::Keyboard::Key::C);
+    io.KeyMap[ImGuiKey_V] = static_cast<int>(lug::Window::Keyboard::Key::V);
+    io.KeyMap[ImGuiKey_X] = static_cast<int>(lug::Window::Keyboard::Key::X);
+    io.KeyMap[ImGuiKey_Y] = static_cast<int>(lug::Window::Keyboard::Key::Y);
+    io.KeyMap[ImGuiKey_Z] = static_cast<int>(lug::Window::Keyboard::Key::Z);
 }
 
 bool Gui::createFontsTexture() {
@@ -737,6 +766,26 @@ bool Gui::initPipeline() {
 
     _pipeline = Vulkan::API::Pipeline(pipeline, device, std::move(_pipelineLayout), std::move(renderPass));
     return (true);
+}
+
+void Gui::processEvents(lug::Window::Event event){
+    ImGuiIO& io = ImGui::GetIO();
+    switch (event.type) {
+        case (lug::Window::Event::Type::KeyPressed):
+        case (lug::Window::Event::Type::KeyReleased):
+            io.KeysDown[static_cast<int>(event.key.code)] = (event.type == lug::Window::Event::Type::KeyPressed) ? true : false;
+
+            io.KeyCtrl = static_cast<int>(event.key.ctrl);
+            io.KeyShift = static_cast<int>(event.key.shift);
+            io.KeyAlt = static_cast<int>(event.key.alt);
+            io.KeySuper = static_cast<int>(event.key.system);
+            break;
+        case (lug::Window::Event::Type::CharEntered):
+            if (event.character.val > 0 && event.character.val < 0x10000) {
+                io.AddInputCharacter(static_cast<unsigned short>(event.character.val));
+            }
+            break;
+    }
 }
 
 bool Gui::initFramebuffers(const std::vector<std::unique_ptr<API::ImageView>>& imageViews) {
