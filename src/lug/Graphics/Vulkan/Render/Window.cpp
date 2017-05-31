@@ -449,7 +449,6 @@ bool Window::initFramesData() {
                 LUG_LOG.error("Window::initFramesData: Can't create semaphore: {}", result);
                 return false;
             }
-            _framesData[i].allDrawsFinishedSemaphore = API::Semaphore(semaphore, &_renderer.getDevice());
 
             // guiSemaphore
 //            result = vkCreateSemaphore(static_cast<VkDevice>(_renderer.getDevice()), &createInfo, nullptr, &semaphore);

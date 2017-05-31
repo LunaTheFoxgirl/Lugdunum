@@ -6,6 +6,7 @@
 #include <lug/Graphics/Vulkan/API/GraphicsPipeline.hpp>
 #include <lug/Graphics/Vulkan/Renderer.hpp>
 #include <lug/Graphics/Vulkan/API/CommandBuffer.hpp>
+#include <lug/Graphics/Vulkan/API/Fence.hpp>
 
 namespace lug {
 namespace Graphics {
@@ -33,10 +34,10 @@ public:
     bool beginFrame(const lug::System::Time &elapsedTime);
     bool endFrame(const std::vector<VkSemaphore>& waitSemaphores, uint32_t currentImageIndex);
     const Vulkan::API::Semaphore& getGuiSemaphore(uint32_t currentImageIndex) const;
-    bool init(const std::vector<std::unique_ptr<API::ImageView>>& imageViews);
+    bool init(const std::vector<API::ImageView>& imageViews);
     void initKeyMapping();
     bool createFontsTexture();
-    bool initFramebuffers(const std::vector<std::unique_ptr<API::ImageView>>& imageViews);
+    bool initFramebuffers(const std::vector<API::ImageView>& imageViews);
     bool initPipeline();
     void processEvents(lug::Window::Event event);
 

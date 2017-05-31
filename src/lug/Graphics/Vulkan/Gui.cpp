@@ -21,7 +21,6 @@
 #include <lug/Graphics/Vulkan/API/Builder/CommandBuffer.hpp>
 #include <lug/Graphics/Vulkan/API/Builder/CommandPool.hpp>
 #include <lug/Graphics/Vulkan/API/ShaderModule.hpp>
-#include <lug/Graphics/Vulkan/API/Fence.hpp>
 #include <lug/Window/Keyboard.hpp>
 
 
@@ -160,7 +159,7 @@ bool Gui::endFrame(const std::vector<VkSemaphore>& waitSemaphores, uint32_t curr
     return true;
 }
 
-bool Gui::init(const std::vector<std::unique_ptr<API::ImageView>>& imageViews) {
+bool Gui::init(const std::vector<API::ImageView>& imageViews) {
     ImGuiIO& io = ImGui::GetIO();
 
     initKeyMapping();
@@ -331,13 +330,11 @@ bool Gui::createFontsTexture() {
             
             API::CommandPool commandPool;
             API::Builder::CommandPool commandPoolBuilder(_renderer.getDevice(), *graphicsQueueFamily);
-            VkResult result{ VK_SUCCESS };
             if (!commandPoolBuilder.build(commandPool, &result)) {
                 LUG_LOG.error("Gui::creatFontTexture: Can't create a command pool: {}", result);
                 return false;
             }
 
-            API::Builder::Fence fenceBuilder(_renderer.getDevice());
             fenceBuilder.setFlags(VK_FENCE_CREATE_SIGNALED_BIT); // Signaled state
 
             API::Builder::CommandBuffer commandBufferBuilder(_renderer.getDevice(), commandPool);
@@ -351,11 +348,15 @@ bool Gui::createFontsTexture() {
 
             commandBuffer.begin();
 
-            commandBuffer.
-            // Prepare for transfer
-            _image->changeLayout(commandBuffer[0], 0, VK_ACCESS_TRANSFER_WRITE_BIT,
-                                 VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-                                 VK_PIPELINE_STAGE_HOST_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT);
+            API::CommandBuffer::CmdPipelineBarrier pipelineBarrier;
+            pipelineBarrier.imageMemoryBarriers.resize(1);
+            pipelineBarrier.imageMemoryBarriers[0].srcAccessMask = VK_PIPELINE_STAGE_HOST_BIT;
+            pipelineBarrier.imageMemoryBarriers[0].dstAccessMask = VK_PIPELINE_STAGE_TRANSFER_BIT;
+            pipelineBarrier.imageMemoryBarriers[0].oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+            pipelineBarrier.imageMemoryBarriers[0].newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+            pipelineBarrier.imageMemoryBarriers[0].image = _image;
+
+            commandBuffer.pipelineBarrier(pipelineBarrier, VK_DEPENDENCY_BY_REGION_BIT);
 
             // Copy
             VkBufferImageCopy bufferCopyRegion = {};
@@ -366,7 +367,7 @@ bool Gui::createFontsTexture() {
             bufferCopyRegion.imageExtent.depth = 1;
 
             vkCmdCopyBufferToImage(
-                static_cast<VkCommandBuffer>(commandBuffer[0]),
+                static_cast<VkCommandBuffer>(commandBuffer),
                 static_cast<VkBuffer>(stagingBuffer),
                 static_cast<VkImage>(*_image),
                 VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
@@ -374,13 +375,18 @@ bool Gui::createFontsTexture() {
                 &bufferCopyRegion
             );
 
-            // Prepare for shader read
-            _image->changeLayout(commandBuffer[0], VK_ACCESS_TRANSFER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT,
-                VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-                VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT);
+            API::CommandBuffer::CmdPipelineBarrier pipelineBarrier;
+            pipelineBarrier.imageMemoryBarriers.resize(1);
+            pipelineBarrier.imageMemoryBarriers[0].srcAccessMask = VK_PIPELINE_STAGE_TRANSFER_BIT;
+            pipelineBarrier.imageMemoryBarriers[0].dstAccessMask = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+            pipelineBarrier.imageMemoryBarriers[0].oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+            pipelineBarrier.imageMemoryBarriers[0].newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+            pipelineBarrier.imageMemoryBarriers[0].image = _image;
 
-            commandBuffer[0].end();
-            if (transfertQueue->submit(commandBuffer[0], {}, {}, {}, fence) == false) {
+            commandBuffer.pipelineBarrier(pipelineBarrier, VK_DEPENDENCY_BY_REGION_BIT);
+
+            commandBuffer.end();
+            if (transfertQueue->submit(commandBuffer, {}, {}, {}, static_cast<VkFence>(fence)) == false) {
                 LUG_LOG.error("GUI: Can't submit commandBuffer");
                 return false;
             }
@@ -392,8 +398,7 @@ bool Gui::createFontsTexture() {
             }
 
            fence.destroy();
-          commandBuffer[0].destroy();
-          stagingBuffer->destroy();
+          commandBuffer.destroy();
         }
     }
 
@@ -670,7 +675,7 @@ void Gui::processEvents(lug::Window::Event event){
     }
 }
 
-bool Gui::initFramebuffers(const std::vector<std::unique_ptr<API::ImageView>>& imageViews) {
+bool Gui::initFramebuffers(const std::vector<API::ImageView>& imageViews) {
     const API::RenderPass* renderPass = _pipeline.getRenderPass();
     auto device = &_renderer.getDevice();
 
@@ -682,11 +687,10 @@ bool Gui::initFramebuffers(const std::vector<std::unique_ptr<API::ImageView>>& i
         API::Builder::Framebuffer framebufferBuilder(_renderer.getDevice());
 
         framebufferBuilder.setRenderPass(renderPass);
-        framebufferBuilder.addAttachment(imageViews[i].get());
-        framebufferBuilder.setWidth(imageViews[i]->getImage()->getExtent().width);
-        framebufferBuilder.setHeight(imageViews[i]->getImage()->getExtent().height);
+        framebufferBuilder.addAttachment(&imageViews[i]);
+        framebufferBuilder.setWidth(imageViews[i].getImage()->getExtent().width);
+        framebufferBuilder.setHeight(imageViews[i].getImage()->getExtent().height);
 
-        VkResult result{ VK_SUCCESS };
         if (!framebufferBuilder.build(_framebuffers[i], &result)) {
             LUG_LOG.error("Forward::initFramebuffers: Can't create framebuffer: {}", result);
             return false;
