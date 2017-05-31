@@ -1,8 +1,9 @@
 #include <lug/Graphics/Vulkan/API/Buffer.hpp>
-#include <lug/Graphics/Vulkan/API/CommandBuffer.hpp>
+
+#include <cstring>
+
 #include <lug/Graphics/Vulkan/API/Device.hpp>
 #include <lug/Graphics/Vulkan/API/DeviceMemory.hpp>
-#include <lug/System/Logger/Logger.hpp>
 
 namespace lug {
 namespace Graphics {
@@ -11,8 +12,7 @@ namespace API {
 
 Buffer::Buffer(
     VkBuffer buffer,
-    const Device* device,
-    DeviceMemory* deviceMemory) : _buffer(buffer), _device(device), _deviceMemory(deviceMemory) {
+    const Device* device) : _buffer(buffer), _device(device) {
     vkGetBufferMemoryRequirements(static_cast<VkDevice>(*device), _buffer, &_requirements);
 }
 
@@ -22,12 +22,17 @@ Buffer::Buffer(Buffer&& buffer) {
     _gpuPtr = buffer._gpuPtr;
     _deviceMemory = buffer._deviceMemory;
     _requirements = buffer._requirements;
+<<<<<<< HEAD
 
+=======
+    _deviceMemoryOffset = buffer._deviceMemoryOffset;
+>>>>>>> dev
     buffer._buffer = VK_NULL_HANDLE;
     buffer._device = nullptr;
     buffer._gpuPtr = nullptr;
     buffer._deviceMemory = nullptr;
     buffer._requirements = {};
+    buffer._deviceMemoryOffset = 0;
 }
 
 Buffer& Buffer::operator=(Buffer&& buffer) {
@@ -38,12 +43,17 @@ Buffer& Buffer::operator=(Buffer&& buffer) {
     _gpuPtr = buffer._gpuPtr;
     _deviceMemory = buffer._deviceMemory;
     _requirements = buffer._requirements;
+<<<<<<< HEAD
 
+=======
+    _deviceMemoryOffset = buffer._deviceMemoryOffset;
+>>>>>>> dev
     buffer._buffer = VK_NULL_HANDLE;
     buffer._device = nullptr;
     buffer._gpuPtr = nullptr;
     buffer._deviceMemory = nullptr;
     buffer._requirements = {};
+    buffer._deviceMemoryOffset = 0;
 
     return *this;
 }
@@ -62,6 +72,7 @@ void Buffer::destroy() {
     }
 }
 
+<<<<<<< HEAD
 void Buffer::bindMemory(DeviceMemory* deviceMemory, VkDeviceSize memoryOffset) {
     _deviceMemory = deviceMemory;
     vkBindBufferMemory(static_cast<VkDevice>(*_device), static_cast<VkBuffer>(_buffer), static_cast<VkDeviceMemory>(*deviceMemory), memoryOffset);
@@ -84,57 +95,26 @@ void Buffer::updateData(void* data, uint32_t size, uint32_t memoryOffset) {
     memcpy(gpuData, data, size);
     unmapMemory();
 }
+=======
+void Buffer::bindMemory(const DeviceMemory& deviceMemory, VkDeviceSize memoryOffset) {
+    _deviceMemory = &deviceMemory;
+    _deviceMemoryOffset = memoryOffset;
 
-void Buffer::updateDataTransfer(const CommandBuffer* commandBuffer, void* data, uint32_t size, uint32_t offset) {
-    vkCmdUpdateBuffer(static_cast<VkCommandBuffer>(*commandBuffer), _buffer, offset, size, data);
+    vkBindBufferMemory(static_cast<VkDevice>(*_device), static_cast<VkBuffer>(_buffer), static_cast<VkDeviceMemory>(deviceMemory), memoryOffset);
 }
 
-const VkMemoryRequirements& Buffer::getRequirements() const {
-    return _requirements;
-}
+bool Buffer::updateData(const void* data, VkDeviceSize size, VkDeviceSize offset) const {
+    void* gpuData = _deviceMemory->mapBuffer(*this, size, offset);
+>>>>>>> dev
 
-std::unique_ptr<Buffer> Buffer::create(
-    const Device* device,
-    uint32_t queueFamilyIndexCount,
-    const uint32_t* pQueueFamilyIndices,
-    VkDeviceSize size,
-    VkBufferUsageFlags usage,
-    VkBufferCreateFlags createFlags,
-    VkSharingMode sharingMode) {
-    // Create buffer
-    VkBufferCreateInfo createInfo{
-        createInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
-        createInfo.pNext = nullptr,
-        createInfo.flags = createFlags,
-        createInfo.size = size,
-        createInfo.usage = usage,
-        createInfo.sharingMode = sharingMode,
-        createInfo.queueFamilyIndexCount = queueFamilyIndexCount,
-        createInfo.pQueueFamilyIndices = pQueueFamilyIndices
-    };
-
-    VkBuffer bufferHandle = VK_NULL_HANDLE;
-    VkResult result = vkCreateBuffer(static_cast<VkDevice>(*device), &createInfo, nullptr, &bufferHandle);
-
-    if (result != VK_SUCCESS) {
-        LUG_LOG.error("RendererVulkan: Can't create buffer: {}", result);
-        return nullptr;
+    if (!gpuData) {
+        return false;
     }
 
-    return std::unique_ptr<Buffer>(new Buffer(bufferHandle, device));
-}
+    memcpy(gpuData, data, size);
+    _deviceMemory->unmap();
 
-uint32_t Buffer::getSizeAligned(const Device* device, uint32_t size) {
-    uint32_t alignment = (uint32_t)device->getPhysicalDeviceInfo()->properties.limits.minUniformBufferOffsetAlignment;
-    uint32_t sizeAligned = 0;
-
-    if (size % alignment != 0) {
-        sizeAligned = static_cast<uint32_t>(size + alignment - (size % alignment));
-    } else {
-        sizeAligned = static_cast<uint32_t>(size);
-    }
-
-    return sizeAligned;
+    return true;
 }
 
 void* Buffer::getGpuPtr() {

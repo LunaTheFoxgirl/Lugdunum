@@ -3,6 +3,8 @@
 #include <cstdint>
 #include <set>
 #include <string>
+
+#include <lug/Core/Version.hpp>
 #include <lug/Graphics/Module.hpp>
 #include <lug/Graphics/Render/Window.hpp>
 #include <lug/System/Time.hpp>
@@ -33,7 +35,7 @@ public:
 
     virtual ~Renderer() = default;
 
-    virtual bool beginInit(const char* appName, uint32_t appVersion, const InitInfo& initInfo) = 0;
+    virtual bool beginInit(const std::string& appName, const Core::Version& appVersion, const InitInfo& initInfo) = 0;
     virtual bool finishInit() = 0;
 
     virtual bool beginFrame(const lug::System::Time &elapsedTime) = 0;

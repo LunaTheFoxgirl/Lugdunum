@@ -3,7 +3,7 @@
 #include <lug/Graphics/Vulkan/API/Buffer.hpp>
 #include <lug/Graphics/Vulkan/API/DeviceMemory.hpp>
 #include <lug/Graphics/Vulkan/API/Framebuffer.hpp>
-#include <lug/Graphics/Vulkan/API/Pipeline.hpp>
+#include <lug/Graphics/Vulkan/API/GraphicsPipeline.hpp>
 #include <lug/Graphics/Vulkan/Renderer.hpp>
 #include <lug/Graphics/Vulkan/API/CommandBuffer.hpp>
 
@@ -47,25 +47,25 @@ private:
     Renderer& _renderer;
     Render::Window& _window;
 
-    std::unique_ptr<API::Image> _image = nullptr;
-    std::unique_ptr<API::ImageView> _imageView = nullptr;
-    std::unique_ptr<API::DeviceMemory> _fontsTextureHostMemory = nullptr;
-    std::unique_ptr<Vulkan::API::DescriptorSetLayout> _descriptorSetLayout;
+    API::Image *_image = nullptr;
+    API::ImageView *_imageView = nullptr;
+    API::DeviceMemory *_fontsTextureHostMemory = nullptr;
+    Vulkan::API::DescriptorSetLayout *_descriptorSetLayout;
 
     VkSampler _sampler;
 
     Vulkan::API::DescriptorPool _descriptorPool;
     std::vector<Vulkan::API::DescriptorSet> _descriptorSet;
-    std::unique_ptr<Vulkan::API::PipelineLayout> _pipelineLayout;
-    Vulkan::API::Pipeline _pipeline;
+    Vulkan::API::PipelineLayout *_pipelineLayout;
+    Vulkan::API::GraphicsPipeline _pipeline;
     std::vector<Vulkan::API::Framebuffer> _framebuffers;
 
 
-    std::vector<std::unique_ptr<Vulkan::API::DeviceMemory>> _vertexDeviceMemories;
-    std::vector<std::unique_ptr<Vulkan::API::DeviceMemory>> _indexDeviceMemories;
+    std::vector<Vulkan::API::DeviceMemory *> _vertexDeviceMemories;
+    std::vector<Vulkan::API::DeviceMemory *> _indexDeviceMemories;
 
-    std::vector<std::unique_ptr<Vulkan::API::Buffer>> _indexBuffers;
-    std::vector<std::unique_ptr<Vulkan::API::Buffer>> _vertexBuffers;
+    std::vector<Vulkan::API::Buffer *> _indexBuffers;
+    std::vector<Vulkan::API::Buffer *> _vertexBuffers;
 
     std::vector<int> _vertexCounts;
     std::vector<int> _indexCounts;
