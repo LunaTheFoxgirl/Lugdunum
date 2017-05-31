@@ -22,11 +22,7 @@ Buffer::Buffer(Buffer&& buffer) {
     _gpuPtr = buffer._gpuPtr;
     _deviceMemory = buffer._deviceMemory;
     _requirements = buffer._requirements;
-<<<<<<< HEAD
-
-=======
     _deviceMemoryOffset = buffer._deviceMemoryOffset;
->>>>>>> dev
     buffer._buffer = VK_NULL_HANDLE;
     buffer._device = nullptr;
     buffer._gpuPtr = nullptr;
@@ -43,11 +39,7 @@ Buffer& Buffer::operator=(Buffer&& buffer) {
     _gpuPtr = buffer._gpuPtr;
     _deviceMemory = buffer._deviceMemory;
     _requirements = buffer._requirements;
-<<<<<<< HEAD
-
-=======
     _deviceMemoryOffset = buffer._deviceMemoryOffset;
->>>>>>> dev
     buffer._buffer = VK_NULL_HANDLE;
     buffer._device = nullptr;
     buffer._gpuPtr = nullptr;
@@ -64,38 +56,12 @@ Buffer::~Buffer() {
 
 void Buffer::destroy() {
     if (_buffer != VK_NULL_HANDLE) {
-        if (_gpuPtr != nullptr) {
-            unmapMemory();
-        }
         vkDestroyBuffer(static_cast<VkDevice>(*_device), _buffer, nullptr);
         _buffer = VK_NULL_HANDLE;
     }
 }
 
-<<<<<<< HEAD
-void Buffer::bindMemory(DeviceMemory* deviceMemory, VkDeviceSize memoryOffset) {
-    _deviceMemory = deviceMemory;
-    vkBindBufferMemory(static_cast<VkDevice>(*_device), static_cast<VkBuffer>(_buffer), static_cast<VkDeviceMemory>(*deviceMemory), memoryOffset);
-}
 
-void* Buffer::mapMemory(VkDeviceSize size, VkDeviceSize offset) {
-    _gpuPtr = nullptr;
-    vkMapMemory(static_cast<VkDevice>(*_device), static_cast<VkDeviceMemory>(*_deviceMemory), offset, size, 0, &_gpuPtr);
-    return _gpuPtr;
-}
-
-void Buffer::unmapMemory() {
-    vkUnmapMemory(static_cast<VkDevice>(*_device), static_cast<VkDeviceMemory>(*_deviceMemory));
-    _gpuPtr = nullptr;
-}
-
-void Buffer::updateData(void* data, uint32_t size, uint32_t memoryOffset) {
-    void* gpuData = mapMemory(size, memoryOffset);
-
-    memcpy(gpuData, data, size);
-    unmapMemory();
-}
-=======
 void Buffer::bindMemory(const DeviceMemory& deviceMemory, VkDeviceSize memoryOffset) {
     _deviceMemory = &deviceMemory;
     _deviceMemoryOffset = memoryOffset;
@@ -105,7 +71,6 @@ void Buffer::bindMemory(const DeviceMemory& deviceMemory, VkDeviceSize memoryOff
 
 bool Buffer::updateData(const void* data, VkDeviceSize size, VkDeviceSize offset) const {
     void* gpuData = _deviceMemory->mapBuffer(*this, size, offset);
->>>>>>> dev
 
     if (!gpuData) {
         return false;
@@ -115,13 +80,6 @@ bool Buffer::updateData(const void* data, VkDeviceSize size, VkDeviceSize offset
     _deviceMemory->unmap();
 
     return true;
-}
-
-void* Buffer::getGpuPtr() {
-    if (!_gpuPtr) {
-        return mapMemory(VK_WHOLE_SIZE);
-    }
-    return _gpuPtr;
 }
 
 } // API

@@ -375,7 +375,6 @@ bool Gui::createFontsTexture() {
                 &bufferCopyRegion
             );
 
-            API::CommandBuffer::CmdPipelineBarrier pipelineBarrier;
             pipelineBarrier.imageMemoryBarriers.resize(1);
             pipelineBarrier.imageMemoryBarriers[0].srcAccessMask = VK_PIPELINE_STAGE_TRANSFER_BIT;
             pipelineBarrier.imageMemoryBarriers[0].dstAccessMask = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
