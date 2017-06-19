@@ -318,6 +318,10 @@ set(IMGUI_SOURCE_FILES
     ${IMGUI_SOURCE_DIR}/imgui_draw.cpp
 )
 
+if(LUG_OS_LINUX)
+    set_source_files_properties(${IMGUI_SOURCE_FILES} PROPERTIES COMPILE_FLAGS DISABLE ALL)
+endif()
+
 # define the target
 lug_add_library(lug-graphics
                 SOURCES ${SRC} ${INC} ${IMGUI_SOURCE_FILES}
