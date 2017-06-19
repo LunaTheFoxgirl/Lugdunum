@@ -14,7 +14,7 @@ namespace Graphics {
 namespace Vulkan {
 namespace Render {
 
-View::View(const Renderer& renderer, const ::lug::Graphics::Render::Target* renderTarget) : ::lug::Graphics::Render::View(renderTarget), _renderer(renderer) {}
+View::View(Renderer& renderer, const ::lug::Graphics::Render::Target* renderTarget) : ::lug::Graphics::Render::View(renderTarget), _renderer(renderer) {}
 
 bool View::init(
     View::InitInfo& initInfo,

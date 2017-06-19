@@ -32,17 +32,10 @@ set(INC
 )
 source_group("inc" FILES ${INC})
 
-set(SHADERS
-    shader.vert
-    shader-directional.frag
-    shader-point.frag # not used but must be present
-    shader-spot.frag # not used but must be present
-)
-
 set(LUG_RESOURCES
-    models/LowPoly/Low\ poly.obj
-    models/LowPoly/Low_poly.mtl
     models/TriangleWithoutIndices.gltf
+    shaders/forward/shader.frag
+    shaders/forward/shader.vert
 )
 
 include_directories(include)

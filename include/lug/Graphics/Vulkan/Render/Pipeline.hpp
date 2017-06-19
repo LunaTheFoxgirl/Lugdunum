@@ -12,6 +12,7 @@
 
 namespace lug {
 namespace Graphics {
+
 namespace Vulkan {
 
 class Renderer;
@@ -22,6 +23,8 @@ namespace Render {
 * @brief      Class for the Vulkan pipeline, Render side.
 */
 class LUG_GRAPHICS_API Pipeline : public Resource {
+    friend class Renderer;
+
 public:
     /**
      * @brief      Id of the Pipeline.
@@ -81,6 +84,8 @@ public:
 
             uint32_t value;
         };
+
+        Id(uint32_t id = 0): value(id) {}
 
         explicit operator uint32_t() {
             return value;
@@ -162,6 +167,8 @@ public:
      * @return     The id.
      */
     Id getId() const;
+
+    const API::GraphicsPipeline& getPipelineAPI();
 
 private:
     bool init();

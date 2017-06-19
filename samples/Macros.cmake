@@ -40,21 +40,6 @@ macro(add_shader shader)
     list(APPEND SHADERS_DEPENDS ${new_path})
 endmacro()
 
-macro(add_shaders target)
-    lug_set_option(BUILD_SHADERS TRUE BOOL "Compile shaders")
-
-    if(BUILD_SHADERS)
-        foreach(shader ${ARGN})
-            add_shader(${shader})
-        endforeach(shader)
-    endif()
-
-    set(target_shaders "shaders-${target}")
-
-    add_custom_target(${target_shaders} DEPENDS ${SHADERS_DEPENDS})
-    add_dependencies(${target} ${target_shaders})
-endmacro()
-
 # resources
 macro(add_resource target_resources directory resource)
     # Select where to copy the resource

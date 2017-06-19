@@ -7,7 +7,6 @@
 
 #include <lug/Graphics/Export.hpp>
 #include <lug/Graphics/Vulkan/API/Buffer.hpp>
-#include <lug/Graphics/Vulkan/API/DescriptorSet.hpp>
 #include <lug/Graphics/Vulkan/API/DeviceMemory.hpp>
 
 namespace lug {
@@ -30,7 +29,7 @@ public:
 
     public:
         SubBuffer() = default;
-        SubBuffer(const API::DescriptorSet* descriptorSet, const API::Buffer* buffer, uint32_t offset, uint32_t size, Chunk* chunk);
+        SubBuffer(const API::Buffer* buffer, uint32_t offset, uint32_t size, Chunk* chunk);
 
         SubBuffer(const SubBuffer&) = default;
         SubBuffer(SubBuffer&& subBuffer) = default;
@@ -41,7 +40,6 @@ public:
         void free();
 
     public:
-        const API::DescriptorSet* descriptorSet;
         const API::Buffer* buffer;
         uint32_t offset;
         uint32_t size;
@@ -53,7 +51,6 @@ public:
 private:
     struct Chunk {
         API::DeviceMemory bufferMemory;
-        API::DescriptorSet descriptorSet;
         API::Buffer buffer;
 
         // Warning: Do not resize chunk.subBuffers
@@ -74,9 +71,7 @@ public:
     BufferPool(uint32_t countPerChunk,
                 uint32_t subBufferSize,
                 const API::Device& device,
-                const std::set<uint32_t>& queueFamilyIndices,
-                const API::DescriptorPool& descriptorPool,
-                const API::DescriptorSetLayout* descriptorSetLayout);
+                const std::set<uint32_t>& queueFamilyIndices);
 
     BufferPool(const BufferPool&) = delete;
     BufferPool(BufferPool&&) = default;
@@ -98,8 +93,6 @@ private:
 
     const API::Device& _device;
     std::set<uint32_t> _queueFamilyIndices;
-    const API::DescriptorPool& _descriptorPool;
-    const API::DescriptorSetLayout* _descriptorSetLayout;
 };
 
 } // Render

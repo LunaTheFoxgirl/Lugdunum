@@ -21,7 +21,7 @@ namespace Render {
 class LUG_GRAPHICS_API View final : public ::lug::Graphics::Render::View {
 public:
     // TODO: Take the number of images and the list of images
-    View(const Renderer& renderer, const ::lug::Graphics::Render::Target* renderTarget);
+    View(Renderer& renderer, const ::lug::Graphics::Render::Target* renderTarget);
 
     View(const View&) = delete;
     View(View&&) = delete;
@@ -49,7 +49,7 @@ public:
     // TODO: Add the semaphores for the images ready in that class too
 
 private:
-    const Renderer& _renderer;
+    Renderer& _renderer;
     std::unique_ptr<Technique::Technique> _renderTechnique{nullptr};
 
     std::vector<API::Semaphore> _drawCompleteSemaphores;

@@ -47,6 +47,8 @@ public:
                 char* data{nullptr};    ///< The data of the buffer.
                 uint32_t size{0};       ///< The size of the above data buffer, in bytes.
             } buffer;
+
+            void* _data{nullptr}; // Specific to each Renderer
         };
 
         /**

@@ -27,7 +27,7 @@ namespace Technique {
 
 class LUG_GRAPHICS_API Technique {
 public:
-    Technique(const Renderer& renderer, const View& renderView);
+    Technique(Renderer& renderer, const View& renderView);
 
     Technique(const Technique&) = delete;
     Technique(Technique&&) = delete;
@@ -45,7 +45,7 @@ public:
     virtual bool initFramebuffers(const std::vector<API::ImageView>& imageViews) = 0;
 
 protected:
-    const Renderer& _renderer;
+    Renderer& _renderer;
     const View& _renderView;
 };
 

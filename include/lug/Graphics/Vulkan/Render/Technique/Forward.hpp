@@ -45,7 +45,7 @@ private:
     };
 
 public:
-    Forward(const Renderer& renderer, const View& renderView);
+    Forward(Renderer& renderer, const View& renderView);
 
     Forward(const Forward&) = delete;
     Forward(Forward&&) = delete;
@@ -68,11 +68,9 @@ private:
 
     API::DeviceMemory _depthBufferMemory;
 
-    API::GraphicsPipeline _pipeline;
-
     std::vector<FrameData> _framesData;
 
-    std::unordered_map<std::string, BufferPool::SubBuffer*> _subBuffers;
+    std::unordered_map<uint32_t, BufferPool::SubBuffer*> _subBuffers;
 
     const API::Queue* _graphicsQueue{nullptr};
     API::CommandPool _commandPool;

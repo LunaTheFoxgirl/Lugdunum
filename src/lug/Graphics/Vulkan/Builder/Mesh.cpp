@@ -5,7 +5,9 @@
 #include <lug/Graphics/Vulkan/API/Builder/Buffer.hpp>
 #include <lug/Graphics/Vulkan/API/Builder/DeviceMemory.hpp>
 #include <lug/Graphics/Vulkan/Renderer.hpp>
+#include <lug/Graphics/Vulkan/Render/Material.hpp>
 #include <lug/Graphics/Vulkan/Render/Mesh.hpp>
+#include <lug/Graphics/Vulkan/Render/Pipeline.hpp>
 
 namespace lug {
 namespace Graphics {
@@ -18,7 +20,7 @@ Resource::SharedPtr<::lug::Graphics::Render::Mesh> build(const ::lug::Graphics::
     std::unique_ptr<Resource> resource{new Vulkan::Render::Mesh(builder._name)};
     Vulkan::Render::Mesh* mesh = static_cast<Vulkan::Render::Mesh*>(resource.get());
 
-    const Vulkan::Renderer& renderer = static_cast<Vulkan::Renderer&>(builder._renderer);
+    Vulkan::Renderer& renderer = static_cast<Vulkan::Renderer&>(builder._renderer);
 
     for (auto& builderPrimitiveSet : builder._primitiveSets) {
         Render::Mesh::PrimitiveSetData* primitiveSetData = new Render::Mesh::PrimitiveSetData();
@@ -85,6 +87,7 @@ Resource::SharedPtr<::lug::Graphics::Render::Mesh> build(const ::lug::Graphics::
                 }
 
                 primitiveSetData->buffers.push_back(std::move(buffer));
+                targetPrimitiveSet.attributes[i]._data = static_cast<void*>(&primitiveSetData->buffers.back());
             }
         }
 

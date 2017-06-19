@@ -24,11 +24,11 @@ Resource::SharedPtr<::lug::Graphics::Render::Material> build(const ::lug::Graphi
     material->_occlusionTexture = builder._occlusionTexture;
     material->_emissiveTexture = builder._emissiveTexture;
 
-    material->_pipelineIdMaterialPart.baseColorInfo = material->_baseColorTexture.texture ? material->_baseColorTexture.texCoord : 0b11;
-    material->_pipelineIdMaterialPart.metallicRoughnessInfo = material->_metallicRoughnessTexture.texture ? material->_metallicRoughnessTexture.texCoord : 0b11;
-    material->_pipelineIdMaterialPart.normalInfo = material->_normalTexture.texture ? material->_normalTexture.texCoord : 0b11;
-    material->_pipelineIdMaterialPart.occlusionInfo = material->_occlusionTexture.texture ? material->_occlusionTexture.texCoord : 0b11;
-    material->_pipelineIdMaterialPart.emissiveInfo = material->_emissiveTexture.texture ? material->_emissiveTexture.texCoord : 0b11;
+    material->pipelineIdMaterialPart.baseColorInfo = material->_baseColorTexture.texture ? material->_baseColorTexture.texCoord : 0b11;
+    material->pipelineIdMaterialPart.metallicRoughnessInfo = material->_metallicRoughnessTexture.texture ? material->_metallicRoughnessTexture.texCoord : 0b11;
+    material->pipelineIdMaterialPart.normalInfo = material->_normalTexture.texture ? material->_normalTexture.texCoord : 0b11;
+    material->pipelineIdMaterialPart.occlusionInfo = material->_occlusionTexture.texture ? material->_occlusionTexture.texCoord : 0b11;
+    material->pipelineIdMaterialPart.emissiveInfo = material->_emissiveTexture.texture ? material->_emissiveTexture.texCoord : 0b11;
 
     // TODO(Nokitoo): load vulkan textures
 

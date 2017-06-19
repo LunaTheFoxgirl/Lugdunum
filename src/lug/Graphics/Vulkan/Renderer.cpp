@@ -113,7 +113,7 @@ bool Renderer::finishInit() {
 #endif
 
     _resourceManager = std::make_unique<::lug::Graphics::ResourceManager>(*this);
-    
+
     return true;
 }
 

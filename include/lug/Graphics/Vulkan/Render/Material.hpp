@@ -21,7 +21,7 @@ class LUG_GRAPHICS_API Material final : public ::lug::Graphics::Render::Material
     friend Resource::SharedPtr<lug::Graphics::Render::Material> Builder::Material::build(const ::lug::Graphics::Builder::Material&);
 
 public:
-    Pipeline::Id::MaterialPart _pipelineIdMaterialPart;
+    Pipeline::Id::MaterialPart pipelineIdMaterialPart;
 
 public:
     Material(const Material&) = delete;
